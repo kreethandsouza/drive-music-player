@@ -1,0 +1,17 @@
+{
+  "name": "Drive Music Player",
+  "short_name": "Drive Music",
+  "description": "Stream and manage audio files stored in Google Drive.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}

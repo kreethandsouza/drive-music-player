@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Stream and manage audio files stored in Google Drive." />
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <!-- iOS: lets the audio session keep playing when the screen locks, and
+         allows the app to be added to the Home Screen like a native app. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Drive Music" />
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <title>Drive Music Player</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
