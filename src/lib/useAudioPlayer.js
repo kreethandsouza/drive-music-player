@@ -1,6 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchAudioBlobUrl } from './drive'
 
+// Not every browser supports every Media Session action; some throw a
+// TypeError for action types they don't recognize.
+function setActionHandlerSafe(action, handler) {
+  try {
+    navigator.mediaSession.setActionHandler(action, handler)
+  } catch {
+    // Unsupported action type — ignore.
+  }
+}
+
+// Tells the OS the current playback position/duration so the iOS lock
+// screen and Control Center can render (and let you drag) a real scrubber,
+// not just a play/pause button.
+function updatePositionState(audio) {
+  if (!('mediaSession' in navigator) || typeof navigator.mediaSession.setPositionState !== 'function') return
+  if (!Number.isFinite(audio.duration) || audio.duration <= 0) return
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: audio.duration,
+      playbackRate: audio.playbackRate || 1,
+      position: Math.min(audio.currentTime, audio.duration),
+    })
+  } catch {
+    // Can throw if position momentarily exceeds duration; safe to ignore.
+  }
+}
+
 function setMediaSession(track, audio) {
   if (!('mediaSession' in navigator)) return
 
@@ -9,18 +36,29 @@ function setMediaSession(track, audio) {
     artist: 'Drive Music Player',
   })
 
-  navigator.mediaSession.setActionHandler('play', () => audio.play())
-  navigator.mediaSession.setActionHandler('pause', () => audio.pause())
+  setActionHandlerSafe('play', () => audio.play())
+  setActionHandlerSafe('pause', () => audio.pause())
   // Manual-play-only app: no queue to advance, so skip previous/next handlers.
-  navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+  setActionHandlerSafe('seekbackward', (details) => {
     audio.currentTime = Math.max(audio.currentTime - (details.seekOffset || 10), 0)
+    updatePositionState(audio)
   })
-  navigator.mediaSession.setActionHandler('seekforward', (details) => {
-    audio.currentTime = Math.min(
-      audio.currentTime + (details.seekOffset || 10),
-      audio.duration || Infinity,
-    )
+  setActionHandlerSafe('seekforward', (details) => {
+    audio.currentTime = Math.min(audio.currentTime + (details.seekOffset || 10), audio.duration || Infinity)
+    updatePositionState(audio)
   })
+  // This is what makes the lock screen/Control Center scrubber draggable.
+  setActionHandlerSafe('seekto', (details) => {
+    if (details.seekTime == null) return
+    if (details.fastSeek && typeof audio.fastSeek === 'function') {
+      audio.fastSeek(details.seekTime)
+    } else {
+      audio.currentTime = details.seekTime
+    }
+    updatePositionState(audio)
+  })
+
+  updatePositionState(audio)
 }
 
 /**
@@ -54,11 +92,19 @@ export function useAudioPlayer(token) {
     audio.preload = 'auto'
     audioRef.current = audio
 
-    const onPlay = () => setIsPlaying(true)
-    const onPause = () => setIsPlaying(false)
+    const onPlay = () => {
+      setIsPlaying(true)
+      updatePositionState(audio)
+    }
+    const onPause = () => {
+      setIsPlaying(false)
+      updatePositionState(audio)
+    }
     const onEnded = () => setIsPlaying(false)
-    const onTimeUpdate = () =>
+    const onTimeUpdate = () => {
       setProgress({ currentTime: audio.currentTime, duration: audio.duration || 0 })
+      updatePositionState(audio)
+    }
     const onError = () => {
       setError('Playback failed. The file may no longer be available.')
       setIsLoading(false)
@@ -125,6 +171,7 @@ export function useAudioPlayer(token) {
     if (!audio || !Number.isFinite(time)) return
     audio.currentTime = Math.min(Math.max(time, 0), audio.duration || time)
     setProgress((prev) => ({ ...prev, currentTime: audio.currentTime }))
+    updatePositionState(audio)
   }, [])
 
   const stopIfActive = useCallback(
