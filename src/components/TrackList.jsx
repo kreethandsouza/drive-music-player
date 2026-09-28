@@ -9,9 +9,7 @@ export default function TrackList({
   isPlaying,
   loadingTrackId,
   onPlay,
-  onRename,
-  onEditTags,
-  onDelete,
+  onOpenActions,
   emptyMessage = 'No audio files found in your Drive.',
   countLabel,
 }) {
@@ -52,9 +50,7 @@ export default function TrackList({
             isPlaying={currentTrack?.id === track.id && isPlaying}
             isLoading={loadingTrackId === track.id}
             onPlay={onPlay}
-            onRename={onRename}
-            onEditTags={onEditTags}
-            onDelete={onDelete}
+            onOpenActions={onOpenActions}
           />
         ))}
       </ul>

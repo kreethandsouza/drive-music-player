@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { enrichTracksInBackground, UNKNOWN_ALBUM, UNKNOWN_ARTIST } from './metadata'
-import { getAllOverrides, saveOverride } from './metadataCache'
 import { getBaseName } from './filename'
 
 function groupTracks(tracks) {
@@ -34,18 +33,13 @@ function groupTracks(tracks) {
 
 /**
  * Enriches Drive files with embedded audio tags (artist/album/title/cover
- * art), layers in any manual artist/album/title overrides (which always win
- * and persist across sessions), and derives Albums/Artists groupings.
+ * art, parsed client-side and cached per-device in IndexedDB), layers in
+ * manual overrides (sourced from Drive-hosted metadata so they follow the
+ * account across devices — see useDriveMetadata), and derives Albums/
+ * Artists groupings.
  */
-export function useLibrary(files, token) {
+export function useLibrary(files, token, overridesById = {}) {
   const [tagsById, setTagsById] = useState({})
-  const [overridesById, setOverridesById] = useState({})
-
-  // Manual overrides aren't tied to a Drive session — load them once so
-  // segregation persists across reloads and sign-outs.
-  useEffect(() => {
-    getAllOverrides().then(setOverridesById)
-  }, [])
 
   // Only re-run the tag-parsing pass when the actual set of files (or their
   // Drive modifiedTime) changes — not on every unrelated re-render.
@@ -69,16 +63,6 @@ export function useLibrary(files, token) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filesKey, token])
 
-  const setTrackOverride = useCallback(async (fileId, patch) => {
-    const result = await saveOverride(fileId, patch)
-    setOverridesById((prev) => {
-      const next = { ...prev }
-      if (result) next[fileId] = result
-      else delete next[fileId]
-      return next
-    })
-  }, [])
-
   const tracks = useMemo(
     () =>
       files.map((file) => {
@@ -98,5 +82,5 @@ export function useLibrary(files, token) {
 
   const { albums, artists } = useMemo(() => groupTracks(tracks), [tracks])
 
-  return { tracks, albums, artists, setTrackOverride }
+  return { tracks, albums, artists }
 }

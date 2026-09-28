@@ -1,7 +1,7 @@
 import Spinner from './Spinner'
 import { UNKNOWN_ARTIST } from '../lib/metadata'
 
-export default function TrackRow({ track, isActive, isPlaying, isLoading, onPlay, onRename, onEditTags, onDelete }) {
+export default function TrackRow({ track, isActive, isPlaying, isLoading, onPlay, onOpenActions }) {
   const subtitle = track.artist !== UNKNOWN_ARTIST ? track.artist : track.name
 
   return (
@@ -40,45 +40,14 @@ export default function TrackRow({ track, isActive, isPlaying, isLoading, onPlay
 
       <button
         type="button"
-        onClick={() => onRename(track)}
+        onClick={() => onOpenActions(track)}
         className="shrink-0 rounded-lg p-2 text-neutral-400 transition hover:bg-white/5 hover:text-white"
-        aria-label="Rename"
+        aria-label="More actions"
       >
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => onEditTags(track)}
-        className={`shrink-0 rounded-lg p-2 transition hover:bg-white/5 hover:text-white ${
-          track.hasOverride ? 'text-emerald-400' : 'text-neutral-400'
-        }`}
-        aria-label="Edit artist/album"
-      >
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path
-            d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82Z"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
-        </svg>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => onDelete(track)}
-        className="shrink-0 rounded-lg p-2 text-neutral-400 transition hover:bg-red-500/10 hover:text-red-400"
-        aria-label="Delete"
-      >
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path
-            d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0-1 14a1 1 0 01-1 1H7a1 1 0 01-1-1L5 6h14z"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="5" cy="12" r="1.75" />
+          <circle cx="12" cy="12" r="1.75" />
+          <circle cx="19" cy="12" r="1.75" />
         </svg>
       </button>
     </li>

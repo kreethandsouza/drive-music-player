@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Header from './components/Header'
 import SignInScreen from './components/SignInScreen'
 import LibraryView from './components/LibraryView'
@@ -10,15 +10,17 @@ import Spinner from './components/Spinner'
 import { useGoogleAuth } from './lib/useGoogleAuth'
 import { useAudioPlayer } from './lib/useAudioPlayer'
 import { useLibrary } from './lib/useLibrary'
+import { useDriveMetadata } from './lib/useDriveMetadata'
 import { listAudioFiles, renameFile, trashFile } from './lib/drive'
 import { withPreservedExtension } from './lib/filename'
 
 function App() {
   const auth = useGoogleAuth()
   const player = useAudioPlayer(auth.token)
+  const driveMeta = useDriveMetadata(auth.token)
 
   const [tracks, setTracks] = useState([])
-  const library = useLibrary(tracks, auth.token)
+  const library = useLibrary(tracks, auth.token, driveMeta.overrides)
   const [isLoadingTracks, setIsLoadingTracks] = useState(false)
   const [loadError, setLoadError] = useState(null)
 
@@ -75,7 +77,7 @@ function App() {
     setIsSavingTags(true)
     setTagsError(null)
     try {
-      await library.setTrackOverride(track.id, patch)
+      driveMeta.setTrackOverride(track.id, patch)
       setEditingTagsTrack(null)
     } catch {
       setTagsError('Could not save. Please try again.')
@@ -83,6 +85,18 @@ function App() {
       setIsSavingTags(false)
     }
   }
+
+  // Resolve each playlist's stored track ids against the live track list,
+  // dropping any that no longer exist (e.g. deleted from Drive).
+  const tracksById = useMemo(() => Object.fromEntries(library.tracks.map((t) => [t.id, t])), [library.tracks])
+  const playlists = useMemo(
+    () =>
+      driveMeta.playlists.map((playlist) => ({
+        ...playlist,
+        tracks: playlist.trackIds.map((id) => tracksById[id]).filter(Boolean),
+      })),
+    [driveMeta.playlists, tracksById],
+  )
 
   const handleDelete = async (track) => {
     setIsDeleting(true)
@@ -126,13 +140,14 @@ function App() {
         tracks={library.tracks}
         albums={library.albums}
         artists={library.artists}
+        playlists={playlists}
         isLoading={isLoadingTracks}
         error={loadError}
         currentTrack={player.currentTrack}
         isPlaying={player.isPlaying}
         loadingTrackId={player.isLoading ? player.currentTrack?.id : null}
         onPlay={player.playTrack}
-        onRename={(track) => {
+        onRenameFile={(track) => {
           setRenameError(null)
           setRenamingTrack(track)
         }}
@@ -140,11 +155,22 @@ function App() {
           setTagsError(null)
           setEditingTagsTrack(track)
         }}
-        onDelete={(track) => {
+        onDeleteFile={(track) => {
           setDeleteError(null)
           setDeletingTrack(track)
         }}
+        onCreatePlaylist={driveMeta.createPlaylist}
+        onRenamePlaylist={driveMeta.renamePlaylist}
+        onDeletePlaylist={driveMeta.deletePlaylist}
+        onAddTrackToPlaylist={driveMeta.addTrackToPlaylist}
+        onRemoveTrackFromPlaylist={driveMeta.removeTrackFromPlaylist}
       />
+
+      {driveMeta.error && (
+        <p className="border-t border-white/10 bg-red-500/10 px-4 py-2 text-center text-xs text-red-400">
+          {driveMeta.error}
+        </p>
+      )}
 
       {player.error && (
         <p className="border-t border-white/10 bg-red-500/10 px-4 py-2 text-center text-xs text-red-400">
@@ -158,6 +184,7 @@ function App() {
         isLoading={player.isLoading}
         progress={player.progress}
         onToggle={() => player.playTrack(player.currentTrack)}
+        onSeek={player.seek}
       />
 
       {renamingTrack && (

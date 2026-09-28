@@ -1,4 +1,4 @@
-export default function DetailHeader({ title, subtitle, artUrl, onBack }) {
+export default function DetailHeader({ title, subtitle, artUrl, onBack, onMenu }) {
   return (
     <div className="flex items-center gap-3 border-b border-white/10 px-3 py-3">
       <button
@@ -14,10 +14,25 @@ export default function DetailHeader({ title, subtitle, artUrl, onBack }) {
 
       {artUrl && <img src={artUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />}
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{title}</p>
         {subtitle && <p className="truncate text-xs text-neutral-500">{subtitle}</p>}
       </div>
+
+      {onMenu && (
+        <button
+          type="button"
+          onClick={onMenu}
+          className="shrink-0 rounded-lg p-2 text-neutral-400 transition hover:bg-white/5 hover:text-white"
+          aria-label="More actions"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="1.75" />
+            <circle cx="12" cy="12" r="1.75" />
+            <circle cx="19" cy="12" r="1.75" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

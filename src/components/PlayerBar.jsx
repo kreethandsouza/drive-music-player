@@ -9,15 +9,29 @@ function formatTime(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-export default function PlayerBar({ track, isPlaying, isLoading, progress, onToggle }) {
+export default function PlayerBar({ track, isPlaying, isLoading, progress, onToggle, onSeek }) {
   if (!track) return null
 
-  const pct = progress.duration ? (progress.currentTime / progress.duration) * 100 : 0
+  const duration = Number.isFinite(progress.duration) ? progress.duration : 0
+  const pct = duration ? (progress.currentTime / duration) * 100 : 0
 
   return (
     <div className="sticky bottom-0 z-10 border-t border-white/10 bg-neutral-900/95 px-4 py-3 backdrop-blur">
-      <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-white/10">
-        <div className="h-full bg-emerald-500 transition-[width]" style={{ width: `${pct}%` }} />
+      <div className="relative mb-2 flex h-4 w-full items-center">
+        <div className="absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step="any"
+          value={Math.min(progress.currentTime, duration || 0)}
+          onChange={(e) => onSeek(Number(e.target.value))}
+          disabled={!duration}
+          aria-label="Seek"
+          className="absolute inset-x-0 h-4 w-full cursor-pointer appearance-none bg-transparent accent-emerald-500 disabled:cursor-default [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500"
+        />
       </div>
       <div className="flex items-center gap-3">
         {track.artUrl ? (

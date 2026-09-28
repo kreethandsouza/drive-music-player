@@ -1,13 +1,13 @@
-// Small IndexedDB-backed cache for:
-//  - parsed track tags (artist/album/title + a downscaled cover art
-//    thumbnail), keyed by Drive file id and invalidated whenever the
-//    file's modifiedTime changes.
-//  - user overrides (manually assigned artist/album/title), which take
-//    priority over parsed tags and persist across sessions until cleared.
+// Small IndexedDB-backed cache for parsed track tags (artist/album/title +
+// a downscaled cover art thumbnail). Keyed by Drive file id, invalidated
+// whenever the file's modifiedTime changes. This is purely a per-device
+// performance optimization for re-parsing embedded audio tags — it does
+// NOT hold user-authored data. Manual overrides and playlists are stored
+// in Drive itself (see metadataStore.js / useDriveMetadata.js) so they
+// follow the account across devices.
 
 const DB_NAME = 'dmp-metadata'
 const TAGS_STORE = 'tracks'
-const OVERRIDES_STORE = 'overrides'
 const DB_VERSION = 2
 
 let dbPromise = null
@@ -25,9 +25,8 @@ function openDb() {
       if (!db.objectStoreNames.contains(TAGS_STORE)) {
         db.createObjectStore(TAGS_STORE, { keyPath: 'id' })
       }
-      if (!db.objectStoreNames.contains(OVERRIDES_STORE)) {
-        db.createObjectStore(OVERRIDES_STORE, { keyPath: 'id' })
-      }
+      // A legacy 'overrides' store may exist from an older version of this
+      // app; it's simply left unused now that overrides live in Drive.
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -67,55 +66,4 @@ export async function setCachedTags(record) {
   } catch {
     // Caching is a best-effort optimization; ignore failures (e.g. private browsing).
   }
-}
-
-/** Load every manual artist/album/title override, keyed by file id. */
-export async function getAllOverrides() {
-  try {
-    const db = await openDb()
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(OVERRIDES_STORE, 'readonly')
-      const req = tx.objectStore(OVERRIDES_STORE).getAll()
-      req.onsuccess = () => {
-        const map = {}
-        for (const record of req.result) map[record.id] = record
-        resolve(map)
-      }
-      req.onerror = () => reject(req.error)
-    })
-  } catch {
-    return {}
-  }
-}
-
-/**
- * Merge a manual { artist, album, title } patch into a file's stored
- * override, dropping empty fields. If nothing is left set, the override is
- * deleted entirely (reverting to parsed tags / Unknown buckets).
- * Resolves with the final override record, or null if it was cleared.
- */
-export async function saveOverride(fileId, patch) {
-  const db = await openDb()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(OVERRIDES_STORE, 'readwrite')
-    const store = tx.objectStore(OVERRIDES_STORE)
-    let result = null
-
-    const getReq = store.get(fileId)
-    getReq.onsuccess = () => {
-      const merged = { ...getReq.result, id: fileId, ...patch }
-      for (const key of ['artist', 'album', 'title']) {
-        if (!merged[key]) delete merged[key]
-      }
-      if (merged.artist || merged.album || merged.title) {
-        store.put(merged)
-        result = merged
-      } else {
-        store.delete(fileId)
-      }
-    }
-
-    tx.oncomplete = () => resolve(result)
-    tx.onerror = () => reject(tx.error)
-  })
 }

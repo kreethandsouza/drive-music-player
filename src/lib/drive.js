@@ -86,4 +86,61 @@ export async function fetchAudioHeadBytes(token, fileId, byteLength) {
   return new Uint8Array(await res.arrayBuffer())
 }
 
+const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files'
+
+/**
+ * Find this app's metadata JSON file (playlists + manual tag overrides),
+ * tagged via a custom Drive file property rather than relying on its name.
+ */
+export async function findMetadataFile(token) {
+  const params = new URLSearchParams({
+    q: "properties has { key='dmpFileType' and value='metadata' } and trashed = false",
+    fields: 'files(id,name)',
+    spaces: 'drive',
+  })
+  const res = await driveFetch(`${DRIVE_FILES_URL}?${params}`, token)
+  const data = await res.json()
+  return data.files?.[0] || null
+}
+
+/** Read a file's contents as text (used for the small metadata JSON file). */
+export async function fetchFileText(token, fileId) {
+  const res = await driveFetch(`${DRIVE_FILES_URL}/${fileId}?alt=media`, token)
+  return res.text()
+}
+
+/** Create the metadata JSON file with initial contents, tagged for lookup. */
+export async function createMetadataFile(token, data) {
+  const boundary = 'dmp-boundary-' + Math.random().toString(36).slice(2)
+  const metadata = {
+    name: 'drive-music-player-data.json',
+    mimeType: 'application/json',
+    properties: { dmpFileType: 'metadata' },
+  }
+  const body =
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    `${JSON.stringify(data)}\r\n` +
+    `--${boundary}--`
+
+  const res = await driveFetch(`${DRIVE_UPLOAD_URL}?uploadType=multipart&fields=id,name`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  })
+  return res.json()
+}
+
+/** Overwrite the metadata file's contents. */
+export async function writeMetadataFile(token, fileId, data) {
+  await driveFetch(`${DRIVE_UPLOAD_URL}/${fileId}?uploadType=media`, token, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify(data),
+  })
+}
+
 export { DriveApiError }

@@ -1,10 +1,12 @@
 # Drive Music Player
 
 A clean, mobile-first web app that streams individual audio tracks directly
-from Google Drive. Sign in with Google, tap a track to play it, browse by
-Songs/Albums/Artists with search, rename or delete files (moves to Drive
-trash) right from the UI, and keep listening after locking your iPhone
-screen.
+from Google Drive. Sign in with Google, tap a track to play it (with a
+seekable progress bar), browse by Songs/Albums/Artists/Playlists with
+search, rename or delete files (moves to Drive trash) right from the UI,
+and keep listening after locking your iPhone screen. Playlists and manual
+artist/album tags are stored in your Drive account itself, so they follow
+you across devices and browser sessions.
 
 Live app: https://kreethandsouza.github.io/drive-music-player/
 
@@ -43,12 +45,30 @@ Live app: https://kreethandsouza.github.io/drive-music-player/
   so this only happens once per file. `src/lib/useLibrary.js` groups tracks
   into Albums/Artists from these tags, falling back to "Unknown
   Artist"/"Unknown Album" when a file has no tags.
-- **Manual tagging**: since not every file has clean tags, tapping the tag
-  icon on a song lets you manually set its Artist/Album. These overrides
-  are stored in IndexedDB (independent of Drive/your Google session), take
-  priority over parsed tags, and persist across reloads and sign-outs.
-- **Search**: filters whatever list is currently visible (Songs, Albums, or
-  Artists) by name/artist/album, client-side.
+- **Manual tagging**: since not every file has clean tags, the "⋯" menu on
+  a song lets you manually set its Artist/Album, which takes priority over
+  parsed tags.
+- **Playlists**: create/rename/delete playlists and add/remove songs via
+  the "⋯" menu. Playlists just reference track ids — deleting a song from
+  Drive removes it from any playlists automatically, without deleting the
+  playlist itself.
+- **Cross-device persistence**: Google Drive's API has nowhere to put
+  "manual tags" or "playlists" — those are concepts this app invents, not
+  something Drive stores natively. So on sign-in, `src/lib/metadataStore.js`
+  finds (or creates) one small JSON file in your Drive
+  (`drive-music-player-data.json`, tagged via a custom Drive file
+  `properties` field so it's found reliably regardless of name/location)
+  holding `{ overrides, playlists }`. `src/lib/useDriveMetadata.js` loads it
+  on sign-in and writes it back (debounced) after every edit — so playlists
+  and tags follow your Google account to any device/browser, not just
+  IndexedDB in one browser. The embedded-tag cache (`metadataCache.js`,
+  IndexedDB) is separate and device-local, since it's just a performance
+  cache for data that's cheap to re-derive from the files themselves.
+- **Seeking**: the player bar's progress bar is a real range input wired to
+  the `<audio>` element's `currentTime`, so you can scrub forward/back
+  while a track plays.
+- **Search**: filters whatever list is currently visible (Songs, Albums,
+  Artists, or Playlists) by name/artist/album, client-side.
 
 ## Local development
 

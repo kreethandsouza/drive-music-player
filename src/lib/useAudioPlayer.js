@@ -69,6 +69,8 @@ export function useAudioPlayer(token) {
     audio.addEventListener('pause', onPause)
     audio.addEventListener('ended', onEnded)
     audio.addEventListener('timeupdate', onTimeUpdate)
+    audio.addEventListener('loadedmetadata', onTimeUpdate)
+    audio.addEventListener('seeked', onTimeUpdate)
     audio.addEventListener('error', onError)
 
     return () => {
@@ -76,6 +78,8 @@ export function useAudioPlayer(token) {
       audio.removeEventListener('pause', onPause)
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('timeupdate', onTimeUpdate)
+      audio.removeEventListener('loadedmetadata', onTimeUpdate)
+      audio.removeEventListener('seeked', onTimeUpdate)
       audio.removeEventListener('error', onError)
       audio.pause()
       audioRef.current = null
@@ -116,6 +120,13 @@ export function useAudioPlayer(token) {
     [currentTrack, token, revokeBlobUrl],
   )
 
+  const seek = useCallback((time) => {
+    const audio = audioRef.current
+    if (!audio || !Number.isFinite(time)) return
+    audio.currentTime = Math.min(Math.max(time, 0), audio.duration || time)
+    setProgress((prev) => ({ ...prev, currentTime: audio.currentTime }))
+  }, [])
+
   const stopIfActive = useCallback(
     (fileId) => {
       if (currentTrack?.id !== fileId) return
@@ -132,5 +143,5 @@ export function useAudioPlayer(token) {
 
   useEffect(() => () => revokeBlobUrl(), [revokeBlobUrl])
 
-  return { currentTrack, isLoading, isPlaying, error, progress, playTrack, stopIfActive }
+  return { currentTrack, isLoading, isPlaying, error, progress, playTrack, seek, stopIfActive }
 }
