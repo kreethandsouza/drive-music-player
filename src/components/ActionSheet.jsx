@@ -5,7 +5,7 @@ export default function ActionSheet({ title, actions, onClose }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-2xl bg-neutral-900 shadow-xl ring-1 ring-white/10"
+        className="w-full max-w-sm overflow-hidden rounded-2xl bg-brand-900 shadow-xl ring-1 ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

@@ -1,93 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Header from './components/Header'
 import SignInScreen from './components/SignInScreen'
 import LibraryView from './components/LibraryView'
 import PlayerBar from './components/PlayerBar'
-import RenameModal from './components/RenameModal'
-import TagEditModal from './components/TagEditModal'
-import ConfirmDeleteModal from './components/ConfirmDeleteModal'
+import NowPlayingSheet from './components/NowPlayingSheet'
+import AddToPlaylistModal from './components/AddToPlaylistModal'
 import Spinner from './components/Spinner'
 import { useGoogleAuth } from './lib/useGoogleAuth'
 import { useAudioPlayer } from './lib/useAudioPlayer'
 import { useLibrary } from './lib/useLibrary'
 import { useDriveMetadata } from './lib/useDriveMetadata'
-import { listAudioFiles, renameFile, trashFile } from './lib/drive'
-import { withPreservedExtension } from './lib/filename'
+import { PASAND_PLAYLIST_NAME } from './lib/metadataStore'
 
 function App() {
   const auth = useGoogleAuth()
-  const player = useAudioPlayer(auth.token)
+  const library = useLibrary()
+  const player = useAudioPlayer(auth.token, library.tracksBySongNo)
   const driveMeta = useDriveMetadata(auth.token)
-
-  const [tracks, setTracks] = useState([])
-  const library = useLibrary(tracks, auth.token, driveMeta.overrides)
-  const [isLoadingTracks, setIsLoadingTracks] = useState(false)
-  const [loadError, setLoadError] = useState(null)
-
-  const [renamingTrack, setRenamingTrack] = useState(null)
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [renameError, setRenameError] = useState(null)
-
-  const [deletingTrack, setDeletingTrack] = useState(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState(null)
-
-  const [editingTagsTrack, setEditingTagsTrack] = useState(null)
-  const [isSavingTags, setIsSavingTags] = useState(false)
-  const [tagsError, setTagsError] = useState(null)
-
-  const loadTracks = useCallback(async () => {
-    if (!auth.token) return
-    setIsLoadingTracks(true)
-    setLoadError(null)
-    try {
-      const files = await listAudioFiles(auth.token)
-      setTracks(files)
-    } catch (err) {
-      console.error('Failed to load Drive files:', err)
-      setLoadError(
-        `Could not load your Drive files. ${err?.message || ''} Try refreshing.`.trim(),
-      )
-    } finally {
-      setIsLoadingTracks(false)
-    }
-  }, [auth.token])
-
-  useEffect(() => {
-    if (auth.isSignedIn) loadTracks()
-    else setTracks([])
-  }, [auth.isSignedIn, loadTracks])
-
-  const handleRename = async (track, newName) => {
-    const finalName = withPreservedExtension(track.name, newName)
-    setIsRenaming(true)
-    setRenameError(null)
-    try {
-      await renameFile(auth.token, track.id, finalName)
-      setTracks((prev) => prev.map((t) => (t.id === track.id ? { ...t, name: finalName } : t)))
-      setRenamingTrack(null)
-    } catch {
-      setRenameError('Rename failed. Please try again.')
-    } finally {
-      setIsRenaming(false)
-    }
-  }
-
-  const handleSaveTags = async (track, patch) => {
-    setIsSavingTags(true)
-    setTagsError(null)
-    try {
-      driveMeta.setTrackOverride(track.id, patch)
-      setEditingTagsTrack(null)
-    } catch {
-      setTagsError('Could not save. Please try again.')
-    } finally {
-      setIsSavingTags(false)
-    }
-  }
+  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false)
+  const [addToPlaylistTrackFromPlayer, setAddToPlaylistTrackFromPlayer] = useState(null)
 
   // Resolve each playlist's stored track ids against the live track list,
-  // dropping any that no longer exist (e.g. deleted from Drive).
+  // dropping any that no longer exist (e.g. removed from the spreadsheet).
   const tracksById = useMemo(() => Object.fromEntries(library.tracks.map((t) => [t.id, t])), [library.tracks])
   const playlists = useMemo(
     () =>
@@ -98,25 +32,40 @@ function App() {
     [driveMeta.playlists, tracksById],
   )
 
-  const handleDelete = async (track) => {
-    setIsDeleting(true)
-    setDeleteError(null)
-    try {
-      await trashFile(auth.token, track.id)
-      player.stopIfActive(track.id)
-      setTracks((prev) => prev.filter((t) => t.id !== track.id))
-      setDeletingTrack(null)
-    } catch {
-      setDeleteError('Delete failed. Please try again.')
-    } finally {
-      setIsDeleting(false)
-    }
-  }
+  const pasandPlaylist = useMemo(
+    () => playlists.find((p) => p.name.toLowerCase() === PASAND_PLAYLIST_NAME.toLowerCase()) || null,
+    [playlists],
+  )
+  const likedTrackIds = useMemo(() => new Set(pasandPlaylist?.trackIds || []), [pasandPlaylist])
+  const toggleLike = useCallback(
+    (trackId) => {
+      if (!pasandPlaylist) return
+      if (likedTrackIds.has(trackId)) driveMeta.removeTrackFromPlaylist(pasandPlaylist.id, trackId)
+      else driveMeta.addTrackToPlaylist(pasandPlaylist.id, trackId)
+    },
+    [pasandPlaylist, likedTrackIds, driveMeta],
+  )
+
+  // Previous/Next in the player bar step by song number (the nearest
+  // existing song number below/above the current one), independent of
+  // whichever list is currently on screen.
+  const currentSongNoIndex = useMemo(
+    () =>
+      player.currentTrack
+        ? library.tracksBySongNo.findIndex((t) => t.id === player.currentTrack.id)
+        : -1,
+    [library.tracksBySongNo, player.currentTrack],
+  )
+  const previousTrack = currentSongNoIndex > 0 ? library.tracksBySongNo[currentSongNoIndex - 1] : null
+  const nextTrack =
+    currentSongNoIndex >= 0 && currentSongNoIndex < library.tracksBySongNo.length - 1
+      ? library.tracksBySongNo[currentSongNoIndex + 1]
+      : null
 
   if (!auth.isReady && !auth.error) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-neutral-950">
-        <Spinner className="h-6 w-6 text-neutral-500" />
+      <div className="flex min-h-svh items-center justify-center bg-brand-950">
+        <Spinner className="h-6 w-6 text-stone-500" />
       </div>
     )
   }
@@ -133,32 +82,21 @@ function App() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-neutral-950">
-      <Header onSignOut={auth.signOut} onRefresh={loadTracks} isRefreshing={isLoadingTracks} />
+    <div className="flex min-h-svh flex-col bg-brand-950">
+      <Header onSignOut={auth.signOut} onRefresh={library.reload} isRefreshing={library.isLoading} />
 
       <LibraryView
         tracks={library.tracks}
-        albums={library.albums}
-        artists={library.artists}
+        composers={library.composers}
         playlists={playlists}
-        isLoading={isLoadingTracks}
-        error={loadError}
+        isLoading={library.isLoading}
+        error={library.error}
         currentTrack={player.currentTrack}
         isPlaying={player.isPlaying}
         loadingTrackId={player.isLoading ? player.currentTrack?.id : null}
         onPlay={player.playTrack}
-        onRenameFile={(track) => {
-          setRenameError(null)
-          setRenamingTrack(track)
-        }}
-        onEditTags={(track) => {
-          setTagsError(null)
-          setEditingTagsTrack(track)
-        }}
-        onDeleteFile={(track) => {
-          setDeleteError(null)
-          setDeletingTrack(track)
-        }}
+        likedTrackIds={likedTrackIds}
+        onToggleLike={toggleLike}
         onCreatePlaylist={driveMeta.createPlaylist}
         onRenamePlaylist={driveMeta.renamePlaylist}
         onDeletePlaylist={driveMeta.deletePlaylist}
@@ -183,37 +121,45 @@ function App() {
         isPlaying={player.isPlaying}
         isLoading={player.isLoading}
         progress={player.progress}
+        hasPrevious={Boolean(previousTrack)}
+        hasNext={Boolean(nextTrack)}
         onToggle={() => player.playTrack(player.currentTrack)}
         onSeek={player.seek}
+        onPrevious={() => previousTrack && player.playTrack(previousTrack)}
+        onNext={() => nextTrack && player.playTrack(nextTrack)}
+        onExpand={() => setIsPlayerExpanded(true)}
       />
 
-      {renamingTrack && (
-        <RenameModal
-          track={renamingTrack}
-          isSaving={isRenaming}
-          error={renameError}
-          onCancel={() => setRenamingTrack(null)}
-          onConfirm={handleRename}
+      {isPlayerExpanded && player.currentTrack && (
+        <NowPlayingSheet
+          track={player.currentTrack}
+          isPlaying={player.isPlaying}
+          isLoading={player.isLoading}
+          progress={player.progress}
+          hasPrevious={Boolean(previousTrack)}
+          hasNext={Boolean(nextTrack)}
+          isLiked={likedTrackIds.has(player.currentTrack.id)}
+          onToggle={() => player.playTrack(player.currentTrack)}
+          onSeek={player.seek}
+          onPrevious={() => previousTrack && player.playTrack(previousTrack)}
+          onNext={() => nextTrack && player.playTrack(nextTrack)}
+          onToggleLike={() => toggleLike(player.currentTrack.id)}
+          onAddToPlaylist={() => setAddToPlaylistTrackFromPlayer(player.currentTrack)}
+          onClose={() => setIsPlayerExpanded(false)}
         />
       )}
 
-      {editingTagsTrack && (
-        <TagEditModal
-          track={editingTagsTrack}
-          isSaving={isSavingTags}
-          error={tagsError}
-          onCancel={() => setEditingTagsTrack(null)}
-          onConfirm={handleSaveTags}
-        />
-      )}
-
-      {deletingTrack && (
-        <ConfirmDeleteModal
-          track={deletingTrack}
-          isDeleting={isDeleting}
-          error={deleteError}
-          onCancel={() => setDeletingTrack(null)}
-          onConfirm={handleDelete}
+      {addToPlaylistTrackFromPlayer && (
+        <AddToPlaylistModal
+          track={addToPlaylistTrackFromPlayer}
+          playlists={playlists}
+          onToggle={(playlistId, isMember) =>
+            isMember
+              ? driveMeta.removeTrackFromPlaylist(playlistId, addToPlaylistTrackFromPlayer.id)
+              : driveMeta.addTrackToPlaylist(playlistId, addToPlaylistTrackFromPlayer.id)
+          }
+          onCreate={(name) => driveMeta.createPlaylist(name, [addToPlaylistTrackFromPlayer.id])}
+          onClose={() => setAddToPlaylistTrackFromPlayer(null)}
         />
       )}
     </div>

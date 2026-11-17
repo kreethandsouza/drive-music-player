@@ -5,11 +5,11 @@ import { EMPTY_METADATA, loadOrCreateMetadata } from './metadataStore'
 const SAVE_DEBOUNCE_MS = 800
 
 /**
- * Loads this app's Drive-hosted metadata file (manual artist/album
- * overrides + playlists) on sign-in, and keeps it in sync: every mutation
- * updates local state immediately and writes back to Drive shortly after
- * (debounced), so playlists/tags follow the Google account across
- * devices and browser sessions instead of living only in this browser.
+ * Loads this app's Drive-hosted metadata file (playlists) on sign-in, and
+ * keeps it in sync: every mutation updates local state immediately and
+ * writes back to Drive shortly after (debounced), so playlists follow the
+ * Google account across devices and browser sessions instead of living
+ * only in this browser.
  */
 export function useDriveMetadata(token) {
   const [data, setData] = useState(EMPTY_METADATA)
@@ -93,22 +93,6 @@ export function useDriveMetadata(token) {
     [scheduleSave],
   )
 
-  const setTrackOverride = useCallback(
-    (fileId, patch) => {
-      mutate((prev) => {
-        const merged = { ...prev.overrides[fileId], ...patch }
-        for (const key of ['artist', 'album', 'title']) {
-          if (!merged[key]) delete merged[key]
-        }
-        const overrides = { ...prev.overrides }
-        if (merged.artist || merged.album || merged.title) overrides[fileId] = merged
-        else delete overrides[fileId]
-        return { ...prev, overrides }
-      })
-    },
-    [mutate],
-  )
-
   const createPlaylist = useCallback(
     (name, trackIds = []) => {
       const playlist = {
@@ -167,11 +151,9 @@ export function useDriveMetadata(token) {
   )
 
   return {
-    overrides: data.overrides,
     playlists: data.playlists,
     isLoading,
     error,
-    setTrackOverride,
     createPlaylist,
     renamePlaylist,
     deletePlaylist,

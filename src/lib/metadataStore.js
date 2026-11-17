@@ -1,33 +1,61 @@
-import { createMetadataFile, fetchFileText, findMetadataFile } from './drive'
+import { createMetadataFile, fetchFileText, findMetadataFile, writeMetadataFile } from './drive'
 
-export const EMPTY_METADATA = { version: 1, overrides: {}, playlists: [] }
+export const EMPTY_METADATA = { version: 1, playlists: [] }
+
+// Every account gets a "Pasand" ("favorites" in Konkani) playlist for free —
+// it's just a regular playlist under the hood, guaranteed to exist as soon
+// as this file is loaded or created, so the heart/like button always has
+// somewhere to go.
+export const PASAND_PLAYLIST_NAME = 'Pasand'
 
 function normalize(data) {
   return {
     version: 1,
-    overrides: data && typeof data.overrides === 'object' ? data.overrides : {},
     playlists: Array.isArray(data?.playlists) ? data.playlists : [],
   }
 }
 
+function ensurePasandPlaylist(data) {
+  const exists = data.playlists.some((p) => p.name.toLowerCase() === PASAND_PLAYLIST_NAME.toLowerCase())
+  if (exists) return data
+  return {
+    ...data,
+    playlists: [
+      ...data.playlists,
+      {
+        id: crypto.randomUUID(),
+        name: PASAND_PLAYLIST_NAME,
+        trackIds: [],
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  }
+}
+
 /**
- * Find this app's metadata file in the user's Drive (playlists + manual
- * artist/album overrides), or create an empty one if this is the first
- * time signing in. This is what makes playlists/tags follow the Google
- * account across devices instead of living only in this browser.
+ * Find this app's metadata file in the user's Drive (playlists), or create
+ * an empty one if this is the first time signing in. This is what makes
+ * playlists follow the Google account across devices instead of living
+ * only in this browser. Also guarantees the default "Pasand" playlist
+ * exists, writing it back to Drive immediately if it was just added.
  */
 export async function loadOrCreateMetadata(token) {
   const existing = await findMetadataFile(token)
   if (existing) {
+    let data
     try {
       const text = await fetchFileText(token, existing.id)
-      return { fileId: existing.id, data: normalize(JSON.parse(text)) }
+      data = normalize(JSON.parse(text))
     } catch {
       // Corrupt/empty file — keep the file id but start fresh rather than crash.
-      return { fileId: existing.id, data: { ...EMPTY_METADATA } }
+      data = { ...EMPTY_METADATA }
     }
+    const withPasand = ensurePasandPlaylist(data)
+    if (withPasand !== data) await writeMetadataFile(token, existing.id, withPasand)
+    return { fileId: existing.id, data: withPasand }
   }
 
-  const created = await createMetadataFile(token, EMPTY_METADATA)
-  return { fileId: created.id, data: { ...EMPTY_METADATA } }
+  const initial = ensurePasandPlaylist({ ...EMPTY_METADATA })
+  const created = await createMetadataFile(token, initial)
+  return { fileId: created.id, data: initial }
 }

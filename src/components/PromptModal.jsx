@@ -31,7 +31,7 @@ export default function PromptModal({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
-          className="w-full rounded-lg border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600"
+          className="w-full rounded-lg border border-white/10 bg-brand-800 px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600"
         />
 
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
@@ -47,7 +47,7 @@ export default function PromptModal({
           <button
             type="submit"
             disabled={!value.trim() || isSaving}
-            className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 transition disabled:opacity-60"
+            className="flex items-center gap-2 rounded-lg bg-gold-500 px-4 py-2 text-sm font-medium text-brand-950 transition disabled:opacity-60"
           >
             {isSaving && <Spinner className="h-4 w-4" />}
             {confirmLabel}

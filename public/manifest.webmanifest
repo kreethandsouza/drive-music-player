@@ -1,17 +1,17 @@
 {
-  "name": "Drive Music Player",
-  "short_name": "Drive Music",
-  "description": "Stream and manage audio files stored in Google Drive.",
+  "name": "Swarr by Mandd Sobhann",
+  "short_name": "Swarr",
+  "description": "Swarr by Mandd Sobhann — stream the Konkani song catalog.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#2c0d0e",
+  "theme_color": "#2c0d0e",
   "icons": [
     {
-      "src": "favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
+      "src": "favicon.png",
+      "type": "image/png",
+      "sizes": "64x64"
     },
     {
       "src": "icon-192.png",

@@ -1,15 +1,15 @@
 import Spinner from './Spinner'
+import logo from '../assets/logo.png'
 
 export default function SignInScreen({ onSignIn, isSigningIn, isReady, error }) {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-neutral-950 px-6 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 text-3xl">
-        🎵
-      </div>
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-brand-950 px-6 text-center">
+      <img src={logo} alt="" className="h-24 w-24" />
       <div>
-        <h1 className="text-2xl font-semibold text-white">Drive Music Player</h1>
-        <p className="mt-2 max-w-xs text-sm text-neutral-400">
-          Sign in with Google to stream and manage the audio files in your Drive.
+        <h1 className="text-2xl font-semibold text-white">Swarr</h1>
+        <p className="text-sm text-gold-400">by Mandd Sobhann</p>
+        <p className="mt-2 max-w-xs text-sm text-stone-400">
+          Sign in with Google to stream the Swarr song catalog.
         </p>
       </div>
 
@@ -45,6 +45,14 @@ export default function SignInScreen({ onSignIn, isSigningIn, isReady, error }) 
       </button>
 
       {error && <p className="max-w-xs text-sm text-red-400">{error}</p>}
+
+      <div className="max-w-xs space-y-1 text-xs text-stone-500">
+        <p>© 2026 Swarr. Developed by kreethandsouza.</p>
+        <p>
+          All rights to the songs in this catalog belong to their original creators and to Mandd Sobhann. Swarr is
+          only a streaming interface and claims no ownership over the music.
+        </p>
+      </div>
     </div>
   )
 }

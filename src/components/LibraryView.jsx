@@ -1,20 +1,18 @@
 import { useMemo, useState } from 'react'
+import { normalizeForSearch } from '../lib/kannadaSearch'
 import Tabs from './Tabs'
 import SearchBar from './SearchBar'
 import TrackList from './TrackList'
-import AlbumGrid from './AlbumGrid'
 import ArtistList from './ArtistList'
 import PlaylistList from './PlaylistList'
 import DetailHeader from './DetailHeader'
 import ActionSheet from './ActionSheet'
 import AddToPlaylistModal from './AddToPlaylistModal'
 import PromptModal from './PromptModal'
-import { UNKNOWN_ARTIST } from '../lib/metadata'
 
 const TABS = [
   { id: 'songs', label: 'Songs' },
-  { id: 'albums', label: 'Albums' },
-  { id: 'artists', label: 'Artists' },
+  { id: 'composers', label: 'Composers' },
   { id: 'playlists', label: 'Playlists' },
 ]
 
@@ -33,16 +31,6 @@ const PencilIcon = (
     <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
-const TagIcon = (
-  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path
-      d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82Z"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
-  </svg>
-)
 const TrashIcon = (
   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path
@@ -53,10 +41,17 @@ const TrashIcon = (
   </svg>
 )
 
-function matchesQuery(track, query) {
+function matchesQuery(track, query, normalizedQuery) {
   if (!query) return true
-  return [track.displayTitle, track.artist, track.album, track.name].some((value) =>
-    value?.toLowerCase().includes(query),
+  if ([track.displayTitle, track.artist, track.songNo].some((value) => value?.toLowerCase().includes(query))) {
+    return true
+  }
+  // Fall back to a loose phonetic match, so typing an English guess at the
+  // Kannada title's pronunciation (e.g. "anthrali" for ಅಂತ್ರಾಳಿಂ) still
+  // finds it — see kannadaSearch.js.
+  if (!normalizedQuery) return false
+  return [track.titleSearchKey, track.artistSearchKey, track.songNoSearchKey].some((key) =>
+    key?.includes(normalizedQuery),
   )
 }
 
@@ -66,8 +61,7 @@ function countLabelOf(count, noun = 'song') {
 
 export default function LibraryView({
   tracks,
-  albums,
-  artists,
+  composers,
   playlists,
   isLoading,
   error,
@@ -75,9 +69,8 @@ export default function LibraryView({
   isPlaying,
   loadingTrackId,
   onPlay,
-  onRenameFile,
-  onEditTags,
-  onDeleteFile,
+  likedTrackIds,
+  onToggleLike,
   onCreatePlaylist,
   onRenamePlaylist,
   onDeletePlaylist,
@@ -86,8 +79,7 @@ export default function LibraryView({
 }) {
   const [activeTab, setActiveTab] = useState('songs')
   const [query, setQuery] = useState('')
-  const [selectedAlbumName, setSelectedAlbumName] = useState(null)
-  const [selectedArtistName, setSelectedArtistName] = useState(null)
+  const [selectedComposerName, setSelectedComposerName] = useState(null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null)
 
   const [actionsTrack, setActionsTrack] = useState(null)
@@ -97,17 +89,13 @@ export default function LibraryView({
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false)
 
   const q = query.trim().toLowerCase()
+  const nq = useMemo(() => normalizeForSearch(query), [query])
 
-  const filteredSongs = useMemo(() => tracks.filter((t) => matchesQuery(t, q)), [tracks, q])
+  const filteredSongs = useMemo(() => tracks.filter((t) => matchesQuery(t, q, nq)), [tracks, q, nq])
 
-  const filteredAlbums = useMemo(
-    () => albums.filter((a) => !q || a.name.toLowerCase().includes(q) || a.artist.toLowerCase().includes(q)),
-    [albums, q],
-  )
-
-  const filteredArtists = useMemo(
-    () => artists.filter((a) => !q || a.name.toLowerCase().includes(q)),
-    [artists, q],
+  const filteredComposers = useMemo(
+    () => composers.filter((a) => !q || a.name.toLowerCase().includes(q)),
+    [composers, q],
   )
 
   const filteredPlaylists = useMemo(
@@ -115,11 +103,10 @@ export default function LibraryView({
     [playlists, q],
   )
 
-  // Look albums/artists/playlists up live (rather than holding a stale
-  // snapshot) so editing tags or playlist membership updates any open
-  // detail view immediately.
-  const selectedAlbum = selectedAlbumName ? albums.find((a) => a.name === selectedAlbumName) : null
-  const selectedArtist = selectedArtistName ? artists.find((a) => a.name === selectedArtistName) : null
+  // Look composers/playlists up live (rather than holding a stale
+  // snapshot) so playlist membership changes update any open detail view
+  // immediately.
+  const selectedComposer = selectedComposerName ? composers.find((a) => a.name === selectedComposerName) : null
   const selectedPlaylist = selectedPlaylistId ? playlists.find((p) => p.id === selectedPlaylistId) : null
 
   const trackListProps = {
@@ -127,6 +114,8 @@ export default function LibraryView({
     isPlaying,
     loadingTrackId,
     onPlay,
+    likedTrackIds,
+    onToggleLike,
     onOpenActions: (track) => setActionsTrack({ track, playlistId: selectedPlaylist?.id ?? null }),
   }
 
@@ -142,53 +131,29 @@ export default function LibraryView({
             ]
           : []),
         { label: 'Add to playlist', icon: PlusIcon, onClick: () => setAddToPlaylistTrack(actionsTrack.track) },
-        { label: 'Rename file', icon: PencilIcon, onClick: () => onRenameFile(actionsTrack.track) },
-        { label: 'Edit artist/album', icon: TagIcon, onClick: () => onEditTags(actionsTrack.track) },
-        { label: 'Delete', icon: TrashIcon, danger: true, onClick: () => onDeleteFile(actionsTrack.track) },
       ]
     : []
 
   let content
-  if (selectedAlbumName) {
-    // Drill-down: viewing all songs within one album.
-    const albumTracks = (selectedAlbum?.tracks || []).filter((t) => matchesQuery(t, q))
+  if (selectedComposerName) {
+    // Drill-down: viewing all songs by one composer.
+    const composerTracks = (selectedComposer?.tracks || []).filter((t) => matchesQuery(t, q, nq))
     content = (
       <>
-        <DetailHeader
-          title={selectedAlbumName}
-          subtitle={selectedAlbum && selectedAlbum.artist !== UNKNOWN_ARTIST ? selectedAlbum.artist : undefined}
-          artUrl={selectedAlbum?.artUrl}
-          onBack={() => setSelectedAlbumName(null)}
-        />
+        <DetailHeader title={selectedComposerName} onBack={() => setSelectedComposerName(null)} />
         <TrackList
-          tracks={albumTracks}
+          tracks={composerTracks}
           isLoading={false}
           error={null}
-          emptyMessage="No songs in this album."
-          countLabel={countLabelOf(albumTracks.length)}
-          {...trackListProps}
-        />
-      </>
-    )
-  } else if (selectedArtistName) {
-    // Drill-down: viewing all songs by one artist.
-    const artistTracks = (selectedArtist?.tracks || []).filter((t) => matchesQuery(t, q))
-    content = (
-      <>
-        <DetailHeader title={selectedArtistName} onBack={() => setSelectedArtistName(null)} />
-        <TrackList
-          tracks={artistTracks}
-          isLoading={false}
-          error={null}
-          emptyMessage="No songs by this artist."
-          countLabel={countLabelOf(artistTracks.length)}
+          emptyMessage="No songs by this composer."
+          countLabel={countLabelOf(composerTracks.length)}
           {...trackListProps}
         />
       </>
     )
   } else if (selectedPlaylistId) {
     // Drill-down: viewing one playlist's songs.
-    const playlistTracks = (selectedPlaylist?.tracks || []).filter((t) => matchesQuery(t, q))
+    const playlistTracks = (selectedPlaylist?.tracks || []).filter((t) => matchesQuery(t, q, nq))
     content = (
       <>
         <DetailHeader
@@ -249,25 +214,17 @@ export default function LibraryView({
             tracks={filteredSongs}
             isLoading={isLoading}
             error={error}
-            emptyMessage={q ? 'No matching songs.' : 'No audio files found in your Drive.'}
+            emptyMessage={q ? 'No matching songs.' : 'No songs found.'}
             countLabel={!isLoading && !error ? countLabelOf(filteredSongs.length) : null}
             {...trackListProps}
           />
         )}
 
-        {activeTab === 'albums' && (
-          <AlbumGrid
-            albums={filteredAlbums}
-            onOpen={(album) => setSelectedAlbumName(album.name)}
-            emptyMessage={q ? 'No matching albums.' : 'No albums found yet.'}
-          />
-        )}
-
-        {activeTab === 'artists' && (
+        {activeTab === 'composers' && (
           <ArtistList
-            artists={filteredArtists}
-            onOpen={(artist) => setSelectedArtistName(artist.name)}
-            emptyMessage={q ? 'No matching artists.' : 'No artists found yet.'}
+            artists={filteredComposers}
+            onOpen={(composer) => setSelectedComposerName(composer.name)}
+            emptyMessage={q ? 'No matching composers.' : 'No composers found yet.'}
           />
         )}
 

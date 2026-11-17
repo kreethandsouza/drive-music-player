@@ -1,86 +1,70 @@
-import { useEffect, useMemo, useState } from 'react'
-import { enrichTracksInBackground, UNKNOWN_ALBUM, UNKNOWN_ARTIST } from './metadata'
-import { getBaseName } from './filename'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { fetchSongLibrary, UNKNOWN_ARTIST } from './sheetLibrary'
 
-function groupTracks(tracks) {
-  const albumMap = new Map()
-  const artistMap = new Map()
-
+function groupByComposer(tracks) {
+  const map = new Map()
   for (const track of tracks) {
-    if (!albumMap.has(track.album)) {
-      albumMap.set(track.album, { name: track.album, artist: track.artist, artUrl: null, tracks: [] })
-    }
-    const album = albumMap.get(track.album)
-    album.tracks.push(track)
-    if (!album.artUrl && track.artUrl) album.artUrl = track.artUrl
-    if (album.artist === UNKNOWN_ARTIST && track.artist !== UNKNOWN_ARTIST) album.artist = track.artist
-
-    if (!artistMap.has(track.artist)) {
-      artistMap.set(track.artist, { name: track.artist, tracks: [] })
-    }
-    artistMap.get(track.artist).tracks.push(track)
+    if (!map.has(track.artist)) map.set(track.artist, { name: track.artist, tracks: [] })
+    map.get(track.artist).tracks.push(track)
   }
 
-  const sorted = (map, unknownLabel) =>
-    Array.from(map.values()).sort((a, b) => {
-      if (a.name === unknownLabel) return 1
-      if (b.name === unknownLabel) return -1
-      return a.name.localeCompare(b.name)
-    })
-
-  return { albums: sorted(albumMap, UNKNOWN_ALBUM), artists: sorted(artistMap, UNKNOWN_ARTIST) }
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.name === UNKNOWN_ARTIST) return 1
+    if (b.name === UNKNOWN_ARTIST) return -1
+    return a.name.localeCompare(b.name)
+  })
 }
 
 /**
- * Enriches Drive files with embedded audio tags (artist/album/title/cover
- * art, parsed client-side and cached per-device in IndexedDB), layers in
- * manual overrides (sourced from Drive-hosted metadata so they follow the
- * account across devices — see useDriveMetadata), and derives Albums/
- * Artists groupings.
+ * Loads the song library from the shared Google Sheet (see sheetLibrary.js)
+ * and groups tracks by composer. The sheet is the single source of truth
+ * for which songs exist and their title/composer.
  */
-export function useLibrary(files, token, overridesById = {}) {
-  const [tagsById, setTagsById] = useState({})
-
-  // Only re-run the tag-parsing pass when the actual set of files (or their
-  // Drive modifiedTime) changes — not on every unrelated re-render.
-  const filesKey = useMemo(
-    () => files.map((f) => `${f.id}:${f.modifiedTime}`).join('|'),
-    [files],
-  )
+export function useLibrary() {
+  const [tracks, setTracks] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
-    if (!token || files.length === 0) return undefined
     let cancelled = false
+    setIsLoading(true)
+    setError(null)
 
-    enrichTracksInBackground(token, files, (id, tags) => {
-      if (cancelled) return
-      setTagsById((prev) => ({ ...prev, [id]: tags }))
-    })
+    fetchSongLibrary()
+      .then((loaded) => {
+        if (!cancelled) setTracks(loaded)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('Failed to load the song list from the spreadsheet:', err)
+        setError('Could not load the song list. Try refreshing.')
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
 
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filesKey, token])
+  }, [reloadToken])
 
-  const tracks = useMemo(
+  const reload = useCallback(() => setReloadToken((n) => n + 1), [])
+  const composers = useMemo(() => groupByComposer(tracks), [tracks])
+
+  // Sorted numerically by song number, for the player bar's Previous/Next
+  // controls — "next"/"previous" means the next/previous *song number*,
+  // not the next item in whatever list happens to be on screen. Tracks
+  // with a missing/non-numeric song number are excluded, since they have
+  // no defined position in this ordering.
+  const tracksBySongNo = useMemo(
     () =>
-      files.map((file) => {
-        const tags = tagsById[file.id]
-        const override = overridesById[file.id]
-        return {
-          ...file,
-          displayTitle: override?.title || tags?.title || getBaseName(file.name),
-          artist: override?.artist || tags?.artist || UNKNOWN_ARTIST,
-          album: override?.album || tags?.album || UNKNOWN_ALBUM,
-          artUrl: tags?.artUrl || null,
-          hasOverride: Boolean(override),
-        }
-      }),
-    [files, tagsById, overridesById],
+      tracks
+        .filter((t) => t.songNo && Number.isFinite(Number(t.songNo)))
+        .slice()
+        .sort((a, b) => Number(a.songNo) - Number(b.songNo)),
+    [tracks],
   )
 
-  const { albums, artists } = useMemo(() => groupTracks(tracks), [tracks])
-
-  return { tracks, albums, artists }
+  return { tracks, composers, tracksBySongNo, isLoading, error, reload }
 }

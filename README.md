@@ -1,12 +1,15 @@
 # Drive Music Player
 
-A clean, mobile-first web app that streams individual audio tracks directly
-from Google Drive. Sign in with Google, tap a track to play it (with a
-seekable progress bar), browse by Songs/Albums/Artists/Playlists with
-search, rename or delete files (moves to Drive trash) right from the UI,
-and keep listening after locking your iPhone screen. Playlists and manual
-artist/album tags are stored in your Drive account itself, so they follow
-you across devices and browser sessions.
+A clean, mobile-first web app that streams a shared catalog of audio tracks
+directly from Google Drive. Sign in with Google, tap a track to play it
+(with a seekable progress bar), browse by Songs/Composers/Playlists with
+search (including by song number), and keep listening after locking your
+iPhone screen. The song catalog itself (title, composer, and the Drive link
+to the actual file) comes from a shared Google Sheet maintained by whoever
+owns the audio files — this app is read-only against that content. Your own
+playlists are stored in your own Drive account, so they follow you across
+devices and browser sessions without needing any access to someone else's
+files.
 
 Live app: https://kreethandsouza.github.io/drive-music-player/
 
@@ -15,60 +18,72 @@ Live app: https://kreethandsouza.github.io/drive-music-player/
 - React + Vite + Tailwind CSS
 - Google Identity Services (GIS) for OAuth (implicit token flow — no
   client secret needed in the browser)
-- Google Drive API v3 for listing, renaming, trashing, and streaming files
+- Google Drive API v3 for streaming files and for this app's own
+  playlist-metadata file
+- A public Google Sheet (CSV export, no auth needed) as the song catalog
 - HTML5 `<audio>` + the Media Session API for lock-screen playback controls
-- `music-metadata` to read embedded ID3/Vorbis/etc. tags for Album/Artist
-  browsing, with results cached in IndexedDB
 
 ## How it works
 
 - **Auth**: `src/lib/useGoogleAuth.js` wraps
   `google.accounts.oauth2.initTokenClient` with scope
-  `https://www.googleapis.com/auth/drive`. The access token is kept in
-  memory + `sessionStorage` and silently renewed a few minutes before it
-  expires.
-- **Drive API**: `src/lib/drive.js` lists audio files
-  (`mimeType contains 'audio/' and trashed = false`), renames files (PATCH
-  `name`), and moves files to trash (PATCH `trashed: true`).
+  `https://www.googleapis.com/auth/drive.readonly
+  https://www.googleapis.com/auth/drive.file` — read-only access to stream
+  shared audio files, plus the narrower "files this app created" scope for
+  its own playlist-metadata file. The access token is kept in memory +
+  `sessionStorage` and silently renewed a few minutes before it expires.
+- **Song catalog**: Google Drive's API has no concept of "song number" or
+  "composer," and this app doesn't own the audio files it plays, so there's
+  no listing/parsing of a Drive folder at all. Instead, `src/lib/sheetLibrary.js`
+  fetches a Google Sheet (shared "Anyone with the link can view") as plain
+  CSV — no Google sign-in required for this part — containing Song
+  No/Title/Composer/Drive-link columns across two tabs ("Allotted Songs" and
+  "Un-Allotted Songs", merged with no distinction between them). The Drive
+  file id is extracted from each row's link. `src/lib/useLibrary.js` groups
+  the resulting tracks by composer, falling back to "Unknown Composer" when
+  a row has none.
 - **Playback**: `src/lib/useAudioPlayer.js` owns a single persistent
-  `<audio>` element. Tapping a track fetches the file bytes with
-  `?alt=media` and a Bearer token, turns them into a blob URL, and plays
-  it — only one track streams at a time, with no auto-advance/queueing.
-  `MediaMetadata`/`mediaSession` action handlers are set so iOS shows the
-  track on the lock screen and playback continues when the phone locks.
-- **Albums/Artists**: Google Drive's API has no concept of "album" or
-  "artist" — it only returns file name/mimeType. `src/lib/metadata.js`
-  fetches a small byte-range from the start of each file (where ID3v2/
-  Vorbis-comment/etc. tags and embedded cover art live) and parses it with
-  `music-metadata`, entirely client-side. Parsed tags (and a downscaled
-  cover art thumbnail) are cached in IndexedDB per file id + `modifiedTime`,
-  so this only happens once per file. `src/lib/useLibrary.js` groups tracks
-  into Albums/Artists from these tags, falling back to "Unknown
-  Artist"/"Unknown Album" when a file has no tags.
-- **Manual tagging**: since not every file has clean tags, the "⋯" menu on
-  a song lets you manually set its Artist/Album, which takes priority over
-  parsed tags.
+  `<audio>` element. Tapping a track fetches the file bytes by Drive file id
+  with `?alt=media` and a Bearer token, turns them into a blob URL, and
+  plays it — only one track streams at a time, with no auto-advance/queueing.
+  This only works if the signed-in Google account has read access to that
+  file (shared directly, or via a shared folder). `MediaMetadata`/
+  `mediaSession` action handlers are set so iOS shows the track on the lock
+  screen and playback continues when the phone locks.
 - **Playlists**: create/rename/delete playlists and add/remove songs via
-  the "⋯" menu. Playlists just reference track ids — deleting a song from
-  Drive removes it from any playlists automatically, without deleting the
-  playlist itself.
+  the "⋯" menu. Playlists just reference track ids — a song disappearing
+  from the spreadsheet removes it from any playlists automatically, without
+  deleting the playlist itself.
 - **Cross-device persistence**: Google Drive's API has nowhere to put
-  "manual tags" or "playlists" — those are concepts this app invents, not
-  something Drive stores natively. So on sign-in, `src/lib/metadataStore.js`
-  finds (or creates) one small JSON file in your Drive
+  "playlists" — that's a concept this app invents, not something Drive
+  stores natively. So on sign-in, `src/lib/metadataStore.js` finds (or
+  creates) one small JSON file in *your own* Drive
   (`drive-music-player-data.json`, tagged via a custom Drive file
   `properties` field so it's found reliably regardless of name/location)
-  holding `{ overrides, playlists }`. `src/lib/useDriveMetadata.js` loads it
-  on sign-in and writes it back (debounced) after every edit — so playlists
-  and tags follow your Google account to any device/browser, not just
-  IndexedDB in one browser. The embedded-tag cache (`metadataCache.js`,
-  IndexedDB) is separate and device-local, since it's just a performance
-  cache for data that's cheap to re-derive from the files themselves.
+  holding `{ playlists }`. `src/lib/useDriveMetadata.js` loads it on sign-in
+  and writes it back (debounced) after every edit — so playlists follow
+  your Google account to any device/browser. Because this file is created
+  by and lives in your own Drive, it works regardless of what access you
+  have to anyone else's shared content.
 - **Seeking**: the player bar's progress bar is a real range input wired to
   the `<audio>` element's `currentTime`, so you can scrub forward/back
   while a track plays.
-- **Search**: filters whatever list is currently visible (Songs, Albums,
-  Artists, or Playlists) by name/artist/album, client-side.
+- **Search**: filters whatever list is currently visible (Songs, Composers,
+  or Playlists) by title, composer, or song number, client-side.
+
+## Sharing this with other people
+
+Getting someone else set up to use this app against a shared catalog needs
+two separate things, both outside this codebase:
+
+1. **Drive sharing**: the account that owns the audio files needs to share
+   the folder (or each individual file) with that person's Google account —
+   Viewer access is enough, since this app never renames or deletes files.
+2. **OAuth test users**: while this app's OAuth client is in "Testing"
+   publishing status, Google blocks sign-in entirely for anyone not listed
+   under **OAuth consent screen → Test users** in the Google Cloud project
+   tied to `GOOGLE_CLIENT_ID` — this is separate from, and in addition to,
+   Drive sharing.
 
 ## Local development
 

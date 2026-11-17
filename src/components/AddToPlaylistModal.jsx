@@ -6,7 +6,7 @@ function CheckIcon({ checked }) {
   return (
     <span
       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
-        checked ? 'border-emerald-500 bg-emerald-500 text-neutral-950' : 'border-white/20 text-transparent'
+        checked ? 'border-gold-500 bg-gold-500 text-brand-950' : 'border-white/20 text-transparent'
       }`}
     >
       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -61,12 +61,12 @@ export default function AddToPlaylistModal({ track, playlists, onToggle, onCreat
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="New playlist name"
-          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600"
+          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-brand-800 px-3 py-2 text-sm text-white outline-none placeholder:text-neutral-600"
         />
         <button
           type="submit"
           disabled={!newName.trim() || isCreating}
-          className="flex shrink-0 items-center gap-1 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-neutral-950 transition disabled:opacity-60"
+          className="flex shrink-0 items-center gap-1 rounded-lg bg-gold-500 px-3 py-2 text-sm font-medium text-brand-950 transition disabled:opacity-60"
         >
           {isCreating && <Spinner className="h-4 w-4" />}
           Create

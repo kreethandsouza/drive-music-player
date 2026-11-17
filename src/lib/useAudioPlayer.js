@@ -32,8 +32,8 @@ function setMediaSession(track, audio) {
   if (!('mediaSession' in navigator)) return
 
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: track?.name || '',
-    artist: 'Drive Music Player',
+    title: track?.displayTitle || '',
+    artist: track?.artist || 'Drive Music Player',
   })
 
   setActionHandlerSafe('play', () => audio.play())
@@ -65,8 +65,12 @@ function setMediaSession(track, audio) {
  * Owns a single persistent <audio> element so exactly one track can stream
  * at a time, wires it up to the Media Session API for lock-screen controls,
  * and keeps playing across screen lock as long as the tab stays open.
+ *
+ * `autoplayTracks` is the song-number-ordered track list used to pick what
+ * plays next when a track finishes on its own: the next higher song
+ * number, wrapping back to the first track after the last one.
  */
-export function useAudioPlayer(token) {
+export function useAudioPlayer(token, autoplayTracks = []) {
   // Plain DOM handle — intentionally a ref (not state), since it's an
   // imperative escape hatch that we mutate directly (src, play/pause, etc).
   const audioRef = useRef(null)
@@ -76,6 +80,20 @@ export function useAudioPlayer(token) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState({ currentTime: 0, duration: 0 })
+
+  // Refs so the 'ended' handler (registered once, see below) always sees
+  // the latest track/list/playTrack without re-registering the listener.
+  const currentTrackRef = useRef(null)
+  useEffect(() => {
+    currentTrackRef.current = currentTrack
+  }, [currentTrack])
+
+  const autoplayTracksRef = useRef(autoplayTracks)
+  useEffect(() => {
+    autoplayTracksRef.current = autoplayTracks
+  }, [autoplayTracks])
+
+  const playTrackRef = useRef(null)
 
   const revokeBlobUrl = useCallback(() => {
     if (blobUrlRef.current) {
@@ -100,7 +118,18 @@ export function useAudioPlayer(token) {
       setIsPlaying(false)
       updatePositionState(audio)
     }
-    const onEnded = () => setIsPlaying(false)
+    const onEnded = () => {
+      setIsPlaying(false)
+      // Autoplay: advance to the next higher song number, wrapping back to
+      // the first track after the last one.
+      const list = autoplayTracksRef.current
+      const finished = currentTrackRef.current
+      if (!finished || list.length === 0) return
+      const index = list.findIndex((t) => t.id === finished.id)
+      if (index === -1) return
+      const next = list[(index + 1) % list.length]
+      playTrackRef.current?.(next)
+    }
     const onTimeUpdate = () => {
       setProgress({ currentTime: audio.currentTime, duration: audio.duration || 0 })
       updatePositionState(audio)
@@ -166,6 +195,10 @@ export function useAudioPlayer(token) {
     [currentTrack, token, revokeBlobUrl],
   )
 
+  useEffect(() => {
+    playTrackRef.current = playTrack
+  }, [playTrack])
+
   const seek = useCallback((time) => {
     const audio = audioRef.current
     if (!audio || !Number.isFinite(time)) return
@@ -174,21 +207,7 @@ export function useAudioPlayer(token) {
     updatePositionState(audio)
   }, [])
 
-  const stopIfActive = useCallback(
-    (fileId) => {
-      if (currentTrack?.id !== fileId) return
-      const audio = audioRef.current
-      audio?.pause()
-      if (audio) audio.src = ''
-      revokeBlobUrl()
-      setCurrentTrack(null)
-      setIsPlaying(false)
-      if ('mediaSession' in navigator) navigator.mediaSession.metadata = null
-    },
-    [currentTrack, revokeBlobUrl],
-  )
-
   useEffect(() => () => revokeBlobUrl(), [revokeBlobUrl])
 
-  return { currentTrack, isLoading, isPlaying, error, progress, playTrack, seek, stopIfActive }
+  return { currentTrack, isLoading, isPlaying, error, progress, playTrack, seek }
 }

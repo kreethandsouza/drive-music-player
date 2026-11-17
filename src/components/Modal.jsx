@@ -5,7 +5,7 @@ export default function Modal({ title, onClose, children }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-neutral-900 p-5 shadow-xl ring-1 ring-white/10"
+        className="w-full max-w-sm rounded-2xl bg-brand-900 p-5 shadow-xl ring-1 ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 text-lg font-semibold text-white">{title}</h2>

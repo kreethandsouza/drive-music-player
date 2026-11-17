@@ -1,5 +1,17 @@
 @import 'tailwindcss';
 
+/* Swarr brand palette: a deep brownish-red paired with white, plus a warm
+   gold accent for interactive/active states (play button, progress, active
+   tab, etc.) where pure red-on-red or white-on-white wouldn't read clearly. */
+@theme {
+  --color-brand-950: #2c0d0e;
+  --color-brand-900: #3f1113;
+  --color-brand-800: #5a1a1b;
+  --color-brand-700: #7a2425;
+  --color-gold-400: #f0c879;
+  --color-gold-500: #e3ad4f;
+}
+
 html,
 body,
 #root {
@@ -8,7 +20,7 @@ body,
 
 body {
   margin: 0;
-  background: #0a0a0a;
+  background: #2c0d0e;
   -webkit-tap-highlight-color: transparent;
 }
 

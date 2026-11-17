@@ -11,7 +11,7 @@ export default function Tabs({ tabs, active, onChange }) {
           }`}
         >
           {tab.label}
-          {active === tab.id && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-emerald-500" />}
+          {active === tab.id && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gold-500" />}
         </button>
       ))}
     </div>

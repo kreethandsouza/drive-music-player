@@ -9,6 +9,8 @@ export default function TrackList({
   isPlaying,
   loadingTrackId,
   onPlay,
+  likedTrackIds,
+  onToggleLike,
   onOpenActions,
   emptyMessage = 'No audio files found in your Drive.',
   countLabel,
@@ -50,6 +52,8 @@ export default function TrackList({
             isPlaying={currentTrack?.id === track.id && isPlaying}
             isLoading={loadingTrackId === track.id}
             onPlay={onPlay}
+            isLiked={likedTrackIds?.has(track.id)}
+            onToggleLike={onToggleLike}
             onOpenActions={onOpenActions}
           />
         ))}
