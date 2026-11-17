@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Spinner from './Spinner'
 import { UNKNOWN_ARTIST } from '../lib/sheetLibrary'
 
 const CLOSE_ANIMATION_MS = 220
+// How far (in px) the sheet needs to be dragged down before it counts as a
+// "pull to dismiss" instead of snapping back open.
+const CLOSE_DRAG_THRESHOLD = 120
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return '0:00'
@@ -73,7 +76,11 @@ function SeekButton({ direction, onClick, disabled }) {
 
 /**
  * Full-screen "Now Playing" view, Spotify-style: the mini player bar's up
- * arrow opens this, and the chevron button here collapses it back.
+ * arrow (or swiping up on it) opens this; the chevron button here, or
+ * swiping down on this sheet's drag handle, collapses it back. Both the
+ * button and the gesture are kept since the small button can be fiddly to
+ * hit reliably on some iPhones, where a missed tap near the top edge can
+ * trigger iOS's own Control Center/notification gesture instead.
  */
 export default function NowPlayingSheet({
   track,
@@ -93,6 +100,9 @@ export default function NowPlayingSheet({
 }) {
   const [isMounted, setIsMounted] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragY, setDragY] = useState(0)
+  const dragStartYRef = useRef(null)
 
   // Slide up on mount rather than appearing instantly.
   useEffect(() => {
@@ -110,17 +120,40 @@ export default function NowPlayingSheet({
   const duration = Number.isFinite(progress.duration) ? progress.duration : 0
   const pct = duration ? (progress.currentTime / duration) * 100 : 0
 
-  const translateY = isClosing || !isMounted ? '100%' : '0'
+  const handleDragStart = (e) => {
+    dragStartYRef.current = e.clientY
+    setIsDragging(true)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  const handleDragMove = (e) => {
+    if (dragStartYRef.current == null) return
+    setDragY(Math.max(e.clientY - dragStartYRef.current, 0))
+  }
+  const handleDragEnd = () => {
+    if (dragStartYRef.current == null) return
+    dragStartYRef.current = null
+    setIsDragging(false)
+    if (dragY > CLOSE_DRAG_THRESHOLD) close()
+    else setDragY(0)
+  }
+
+  const translateY = isClosing || !isMounted ? '100%' : `${dragY}px`
 
   return (
     <div
       className="fixed inset-0 z-40 flex flex-col bg-brand-950"
       style={{
         transform: `translateY(${translateY})`,
-        transition: `transform ${CLOSE_ANIMATION_MS}ms ease-out`,
+        transition: isDragging ? 'none' : `transform ${CLOSE_ANIMATION_MS}ms ease-out`,
       }}
     >
-      <div className="flex shrink-0 flex-col items-center gap-3 px-2 pb-1 pt-3">
+      <div
+        className="flex shrink-0 cursor-grab touch-none flex-col items-center gap-3 px-2 pb-1 pt-3 active:cursor-grabbing"
+        onPointerDown={handleDragStart}
+        onPointerMove={handleDragMove}
+        onPointerUp={handleDragEnd}
+        onPointerCancel={handleDragEnd}
+      >
         <div className="h-1.5 w-10 shrink-0 rounded-full bg-white/20" />
         <button
           type="button"

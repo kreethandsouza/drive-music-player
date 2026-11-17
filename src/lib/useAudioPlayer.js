@@ -101,11 +101,24 @@ export function useAudioPlayer(token, autoplayTracks = []) {
 
   const playTrackRef = useRef(null)
 
+  // Audio for the next track in song-number order, fetched ahead of time
+  // (see playTrack) so autoplay-on-ended can swap to it instantly. This
+  // matters because iOS Safari throttles/pauses background network
+  // fetches once the screen locks — without a prefetch, autoplay would
+  // advance the lock screen to the next track but its audio fetch would
+  // stall silently until the phone is unlocked.
+  const prefetchRef = useRef({ trackId: null, blobUrl: null })
+
   const revokeBlobUrl = useCallback(() => {
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current)
       blobUrlRef.current = null
     }
+  }, [])
+
+  const clearPrefetch = useCallback(() => {
+    if (prefetchRef.current.blobUrl) URL.revokeObjectURL(prefetchRef.current.blobUrl)
+    prefetchRef.current = { trackId: null, blobUrl: null }
   }, [])
 
   useEffect(() => {
@@ -185,7 +198,13 @@ export function useAudioPlayer(token, autoplayTracks = []) {
       audio.pause()
 
       try {
-        const blobUrl = await fetchAudioBlobUrl(token, track.id)
+        let blobUrl
+        if (prefetchRef.current.trackId === track.id && prefetchRef.current.blobUrl) {
+          blobUrl = prefetchRef.current.blobUrl
+          prefetchRef.current = { trackId: null, blobUrl: null }
+        } else {
+          blobUrl = await fetchAudioBlobUrl(token, track.id)
+        }
         revokeBlobUrl()
         blobUrlRef.current = blobUrl
         audio.src = blobUrl
@@ -200,6 +219,24 @@ export function useAudioPlayer(token, autoplayTracks = []) {
         setMediaSession(track, audio, { onPrevious, onNext })
 
         await audio.play()
+
+        // Prefetch the next track's audio now, while still foregrounded —
+        // see the prefetchRef comment above.
+        if (index !== -1 && list.length > 1) {
+          const upcoming = list[(index + 1) % list.length]
+          if (upcoming && upcoming.id !== track.id && prefetchRef.current.trackId !== upcoming.id) {
+            clearPrefetch()
+            prefetchRef.current = { trackId: upcoming.id, blobUrl: null }
+            fetchAudioBlobUrl(token, upcoming.id)
+              .then((url) => {
+                if (prefetchRef.current.trackId === upcoming.id) prefetchRef.current.blobUrl = url
+                else URL.revokeObjectURL(url) // a different track started before this resolved
+              })
+              .catch(() => {
+                if (prefetchRef.current.trackId === upcoming.id) prefetchRef.current = { trackId: null, blobUrl: null }
+              })
+          }
+        }
       } catch {
         setError('Could not load this track from Drive.')
         setCurrentTrack(null)
@@ -207,7 +244,7 @@ export function useAudioPlayer(token, autoplayTracks = []) {
         setIsLoading(false)
       }
     },
-    [currentTrack, token, revokeBlobUrl],
+    [currentTrack, token, revokeBlobUrl, clearPrefetch],
   )
 
   useEffect(() => {
@@ -223,6 +260,7 @@ export function useAudioPlayer(token, autoplayTracks = []) {
   }, [])
 
   useEffect(() => () => revokeBlobUrl(), [revokeBlobUrl])
+  useEffect(() => () => clearPrefetch(), [clearPrefetch])
 
   return { currentTrack, isLoading, isPlaying, error, progress, playTrack, seek }
 }

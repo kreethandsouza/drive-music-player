@@ -1,5 +1,10 @@
+import { useRef } from 'react'
 import Spinner from './Spinner'
 import { UNKNOWN_ARTIST } from '../lib/sheetLibrary'
+
+// How far (in px) an upward swipe on the bar needs to travel before it
+// counts as "expand" rather than just a tap on one of the bar's buttons.
+const SWIPE_UP_THRESHOLD = 40
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return '0:00'
@@ -58,13 +63,36 @@ export default function PlayerBar({
   onNext,
   onExpand,
 }) {
+  const dragStartYRef = useRef(null)
+
   if (!track) return null
 
   const duration = Number.isFinite(progress.duration) ? progress.duration : 0
   const pct = duration ? (progress.currentTime / duration) * 100 : 0
 
+  // Swiping up on the bar (from anywhere, including the arrow button)
+  // also expands it — some iPhones render the arrow button too small/
+  // near the edge to tap reliably, and swiping up there otherwise just
+  // triggers iOS's own Control Center/notification gesture instead.
+  const handlePointerDown = (e) => {
+    dragStartYRef.current = e.clientY
+  }
+  const handlePointerUp = (e) => {
+    if (dragStartYRef.current == null) return
+    const deltaY = dragStartYRef.current - e.clientY
+    dragStartYRef.current = null
+    if (deltaY > SWIPE_UP_THRESHOLD) onExpand()
+  }
+
   return (
-    <div className="sticky bottom-0 z-10 border-t border-white/10 bg-brand-900/95 px-4 py-3 backdrop-blur">
+    <div
+      className="sticky bottom-0 z-10 border-t border-white/10 bg-brand-900/95 px-4 py-3 backdrop-blur"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        dragStartYRef.current = null
+      }}
+    >
       <div className="relative mb-2 flex h-4 w-full items-center">
         <div className="absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/10">
           <div className="h-full bg-gold-500" style={{ width: `${pct}%` }} />
