@@ -28,7 +28,10 @@ function updatePositionState(audio) {
   }
 }
 
-function setMediaSession(track, audio) {
+// Note: the Media Session API has no "like"/favorite action in its spec —
+// only play, pause, seek*, previoustrack, and nexttrack — so a heart
+// button can't be added to the iOS lock screen/Control Center itself.
+function setMediaSession(track, audio, { onPrevious, onNext } = {}) {
   if (!('mediaSession' in navigator)) return
 
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -38,7 +41,10 @@ function setMediaSession(track, audio) {
 
   setActionHandlerSafe('play', () => audio.play())
   setActionHandlerSafe('pause', () => audio.pause())
-  // Manual-play-only app: no queue to advance, so skip previous/next handlers.
+  // null unregisters the handler, which is also how you tell the OS to
+  // grey out/hide that control — used here when there's nothing to skip to.
+  setActionHandlerSafe('previoustrack', onPrevious || null)
+  setActionHandlerSafe('nexttrack', onNext || null)
   setActionHandlerSafe('seekbackward', (details) => {
     audio.currentTime = Math.max(audio.currentTime - (details.seekOffset || 10), 0)
     updatePositionState(audio)
@@ -183,7 +189,16 @@ export function useAudioPlayer(token, autoplayTracks = []) {
         revokeBlobUrl()
         blobUrlRef.current = blobUrl
         audio.src = blobUrl
-        setMediaSession(track, audio)
+
+        // Lock screen/Control Center Previous/Next: step by song number,
+        // same as the in-app player bar — no wraparound here, unlike the
+        // autoplay-on-ended case above.
+        const list = autoplayTracksRef.current
+        const index = list.findIndex((t) => t.id === track.id)
+        const onPrevious = index > 0 ? () => playTrackRef.current?.(list[index - 1]) : null
+        const onNext = index >= 0 && index < list.length - 1 ? () => playTrackRef.current?.(list[index + 1]) : null
+        setMediaSession(track, audio, { onPrevious, onNext })
+
         await audio.play()
       } catch {
         setError('Could not load this track from Drive.')
