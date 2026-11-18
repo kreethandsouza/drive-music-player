@@ -6,9 +6,13 @@ const GIS_SCRIPT_SRC = 'https://accounts.google.com/gsi/client'
 // Renew a bit before the token actually expires so requests never race it.
 const RENEW_MARGIN_MS = 5 * 60 * 1000
 
+// localStorage (not sessionStorage): a home-screen PWA on iOS gets a fresh
+// browsing session every time it's reopened, which would otherwise wipe
+// this on every relaunch and force a fresh sign-in each time even though
+// Google still remembers the account/consent.
 function loadStoredToken() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed?.token || !parsed?.expiresAt) return null
@@ -20,11 +24,11 @@ function loadStoredToken() {
 }
 
 function storeToken(token, expiresAt) {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ token, expiresAt }))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, expiresAt }))
 }
 
 function clearStoredToken() {
-  sessionStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(STORAGE_KEY)
 }
 
 function loadGisScript() {
@@ -52,10 +56,17 @@ function loadGisScript() {
 /**
  * Manages Google sign-in via Google Identity Services' token client and
  * keeps the Drive access token fresh for the lifetime of the tab.
+ *
+ * `isRestoringSession` covers the brief window on a cold start where
+ * there's no valid cached token yet but we haven't given up on signing
+ * back in silently either (see the initial-load effect below) — the app
+ * should keep showing a loading state rather than flash the sign-in
+ * screen while that's in flight.
  */
 export function useGoogleAuth() {
   const [token, setToken] = useState(null)
   const [isReady, setIsReady] = useState(false)
+  const [isRestoringSession, setIsRestoringSession] = useState(true)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [error, setError] = useState(null)
 
@@ -85,9 +96,11 @@ export function useGoogleAuth() {
           scope: GOOGLE_DRIVE_SCOPE,
           callback: (response) => {
             setIsSigningIn(false)
+            setIsRestoringSession(false)
             if (response.error) {
-              // A silent renewal can fail if the Google session ended; treat
-              // that as being signed out rather than surfacing a hard error.
+              // A silent renewal/restore can fail if the Google session
+              // ended; treat that as being signed out rather than
+              // surfacing a hard error (the sign-in button is still there).
               if (response.error !== 'access_denied' && response.error !== 'interaction_required') {
                 setError(response.error_description || response.error)
               }
@@ -105,21 +118,33 @@ export function useGoogleAuth() {
           },
           error_callback: () => {
             setIsSigningIn(false)
+            setIsRestoringSession(false)
           },
         })
 
         setIsReady(true)
 
-        // Restore an existing session for this tab, if the token hasn't expired.
+        // Restore an existing session, if the cached token hasn't expired.
         const stored = loadStoredToken()
         if (stored) {
           wantsSessionRef.current = true
           setToken(stored.token)
           scheduleRenew(stored.expiresAt)
+          setIsRestoringSession(false)
+        } else {
+          // No valid cached token (first visit, or it expired while the
+          // app was closed) — try a silent, no-prompt token request before
+          // falling back to showing the Sign in button. If the browser
+          // still has an active Google session and previously-granted
+          // consent, this succeeds with no UI at all.
+          tokenClientRef.current.requestAccessToken({ prompt: '' })
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message)
+        if (!cancelled) {
+          setError(err.message)
+          setIsRestoringSession(false)
+        }
       })
 
     return () => {
@@ -151,6 +176,7 @@ export function useGoogleAuth() {
     token,
     isSignedIn: Boolean(token),
     isReady,
+    isRestoringSession,
     isSigningIn,
     error,
     signIn,

@@ -62,7 +62,10 @@ function App() {
       ? library.tracksBySongNo[currentSongNoIndex + 1]
       : null
 
-  if (!auth.isReady && !auth.error) {
+  // Covers both the initial GIS script load and the brief silent
+  // sign-in-restore attempt on a cold start, so a returning user doesn't
+  // see a flash of the sign-in screen before that attempt resolves.
+  if ((!auth.isReady || auth.isRestoringSession) && !auth.error) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-brand-950">
         <Spinner className="h-6 w-6 text-stone-500" />
