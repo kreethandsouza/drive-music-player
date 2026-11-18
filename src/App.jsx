@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from 'react'
 import Header from './components/Header'
 import SignInScreen from './components/SignInScreen'
 import LibraryView from './components/LibraryView'
-import BottomNav from './components/BottomNav'
 import PlayerBar from './components/PlayerBar'
 import NowPlayingSheet from './components/NowPlayingSheet'
 import AddToPlaylistModal from './components/AddToPlaylistModal'
@@ -21,7 +20,6 @@ function App() {
   const library = useLibrary(auth.token)
   const driveMeta = useDriveMetadata(auth.token)
   const player = useAudioPlayer(auth.token, library.tracksBySongNo, driveMeta.recordPlay)
-  const [activeTab, setActiveTab] = useState('home')
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false)
   const [addToPlaylistTrackFromPlayer, setAddToPlaylistTrackFromPlayer] = useState(null)
 
@@ -74,13 +72,18 @@ function App() {
     [playlists],
   )
   const likedTrackIds = useMemo(() => new Set(pasandPlaylist?.trackIds || []), [pasandPlaylist])
+  // Depends on the individual stable functions, not the whole `driveMeta`
+  // object — that object is a fresh literal on every render of this
+  // component (including the ~4x/second progress-bar ticks while a song
+  // plays), so depending on it would recreate toggleLike constantly and
+  // defeat every TrackRow's memoization the whole time something's playing.
   const toggleLike = useCallback(
     (trackId) => {
       if (!pasandPlaylist) return
       if (likedTrackIds.has(trackId)) driveMeta.removeTrackFromPlaylist(pasandPlaylist.id, trackId)
       else driveMeta.addTrackToPlaylist(pasandPlaylist.id, trackId)
     },
-    [pasandPlaylist, likedTrackIds, driveMeta],
+    [pasandPlaylist, likedTrackIds, driveMeta.removeTrackFromPlaylist, driveMeta.addTrackToPlaylist],
   )
 
   // Previous/Next in the player bar step by song number (the nearest
@@ -152,7 +155,6 @@ function App() {
         mostPlayed={mostPlayed}
         topComposer={topComposer}
         totalPlays={totalPlays}
-        activeTab={activeTab}
       />
 
       {driveMeta.error && (
@@ -178,8 +180,6 @@ function App() {
         onSeek={player.seek}
         onExpand={() => setIsPlayerExpanded(true)}
       />
-
-      <BottomNav active={activeTab} onChange={setActiveTab} />
 
       {isPlayerExpanded && player.currentTrack && (
         <NowPlayingSheet

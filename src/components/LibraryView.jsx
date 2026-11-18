@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { normalizeForSearch } from '../lib/kannadaSearch'
+import Tabs from './Tabs'
 import SearchBar from './SearchBar'
 import HomeView from './HomeView'
 import TrackList from './TrackList'
@@ -9,6 +10,13 @@ import DetailHeader from './DetailHeader'
 import ActionSheet from './ActionSheet'
 import AddToPlaylistModal from './AddToPlaylistModal'
 import PromptModal from './PromptModal'
+
+const TABS = [
+  { id: 'home', label: 'Home' },
+  { id: 'songs', label: 'Songs' },
+  { id: 'composers', label: 'Composers' },
+  { id: 'playlists', label: 'Playlists' },
+]
 
 const PlusIcon = (
   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -76,15 +84,14 @@ export default function LibraryView({
   mostPlayed,
   topComposer,
   totalPlays,
-  activeTab,
 }) {
+  const [activeTab, setActiveTab] = useState('home')
   const [query, setQuery] = useState('')
   const [selectedComposerName, setSelectedComposerName] = useState(null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null)
 
-  // Switching tabs via the bottom nav always lands on that tab's root,
-  // same as Spotify — it shouldn't leave you stuck inside whatever
-  // composer/playlist you'd drilled into on a different tab.
+  // Switching tabs always lands on that tab's root — it shouldn't leave
+  // you stuck inside whatever composer/playlist you'd drilled into.
   useEffect(() => {
     setSelectedComposerName(null)
     setSelectedPlaylistId(null)
@@ -117,6 +124,16 @@ export default function LibraryView({
   const selectedComposer = selectedComposerName ? composers.find((a) => a.name === selectedComposerName) : null
   const selectedPlaylist = selectedPlaylistId ? playlists.find((p) => p.id === selectedPlaylistId) : null
 
+  // Stable across re-renders (via useCallback) so TrackRow's React.memo
+  // actually prevents re-rendering all ~4,500 rows every time any one of
+  // them is liked/unliked — this was the main cause of the Songs list
+  // feeling slow/unresponsive to tap.
+  const selectedPlaylistIdForActions = selectedPlaylist?.id ?? null
+  const onOpenActions = useCallback(
+    (track) => setActionsTrack({ track, playlistId: selectedPlaylistIdForActions }),
+    [selectedPlaylistIdForActions],
+  )
+
   const trackListProps = {
     currentTrack,
     isPlaying,
@@ -124,7 +141,7 @@ export default function LibraryView({
     onPlay,
     likedTrackIds,
     onToggleLike,
-    onOpenActions: (track) => setActionsTrack({ track, playlistId: selectedPlaylist?.id ?? null }),
+    onOpenActions,
   }
 
   const actionsList = actionsTrack
@@ -214,6 +231,7 @@ export default function LibraryView({
   } else {
     content = (
       <>
+        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
         {activeTab !== 'home' && <SearchBar value={query} onChange={setQuery} placeholder={`Search ${activeTab}`} />}
 
         {activeTab === 'home' && (

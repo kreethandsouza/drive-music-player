@@ -211,8 +211,12 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
       const audio = audioRef.current
       if (!audio || !token) return
 
-      // Tapping the already-loaded track just toggles play/pause.
-      if (currentTrack?.id === track.id) {
+      // Tapping the already-loaded track just toggles play/pause. Reads
+      // the ref (not the `currentTrack` state) so this function's own
+      // identity doesn't change every time a track starts playing —
+      // otherwise every memoized TrackRow would lose its memoization and
+      // re-render on every single play, not just the row that changed.
+      if (currentTrackRef.current?.id === track.id) {
         if (audio.paused) await audio.play().catch(() => {})
         else audio.pause()
         return
@@ -271,7 +275,7 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
         setIsLoading(false)
       }
     },
-    [currentTrack, token, revokeBlobUrl, clearPrefetch],
+    [token, revokeBlobUrl, clearPrefetch],
   )
 
   useEffect(() => {

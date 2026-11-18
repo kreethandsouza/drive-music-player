@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Spinner from './Spinner'
 import { UNKNOWN_ARTIST } from '../lib/sheetLibrary'
 
@@ -11,7 +12,11 @@ const HeartIcon = ({ filled }) => (
   </svg>
 )
 
-export default function TrackRow({ track, isActive, isPlaying, isLoading, onPlay, isLiked, onToggleLike, onOpenActions }) {
+// Memoized: the Songs list can have ~4,500 rows, and liking/playing one
+// track changes props that are recomputed fresh each render (currentTrack,
+// likedTrackIds); without this every row would re-render on every tap,
+// which is what was making the list feel slow/unresponsive.
+function TrackRow({ track, isActive, isPlaying, isLoading, onPlay, isLiked, onToggleLike, onOpenActions }) {
   const subtitleParts = []
   if (track.artist && track.artist !== UNKNOWN_ARTIST) subtitleParts.push(track.artist)
   if (track.songNo) subtitleParts.push(`#${track.songNo}`)
@@ -75,3 +80,5 @@ export default function TrackRow({ track, isActive, isPlaying, isLoading, onPlay
     </li>
   )
 }
+
+export default memo(TrackRow)
