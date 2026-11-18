@@ -147,25 +147,29 @@ export default function NowPlayingSheet({
         transition: isDragging ? 'none' : `transform ${CLOSE_ANIMATION_MS}ms ease-out`,
       }}
     >
+      {/* Drag area covers the handle, close button, art, and title — all
+          non-interactive except the button itself — so there's a large,
+          easy-to-grab region for swipe-to-dismiss, not just a thin strip
+          at the very top near the status bar/dynamic island. */}
       <div
-        className="flex shrink-0 cursor-grab touch-none flex-col items-center gap-3 px-2 pb-1 pt-3 active:cursor-grabbing"
+        className="flex shrink-0 cursor-grab touch-none flex-col items-center gap-8 px-8 pb-6 pt-3 active:cursor-grabbing"
         onPointerDown={handleDragStart}
         onPointerMove={handleDragMove}
         onPointerUp={handleDragEnd}
         onPointerCancel={handleDragEnd}
       >
-        <div className="h-1.5 w-10 shrink-0 rounded-full bg-white/20" />
-        <button
-          type="button"
-          onClick={close}
-          aria-label="Minimize player"
-          className="self-start rounded-lg p-2 text-stone-400 transition hover:bg-white/5 hover:text-white"
-        >
-          {ChevronDownIcon}
-        </button>
-      </div>
+        <div className="flex w-full shrink-0 flex-col items-center gap-3">
+          <div className="h-1.5 w-10 shrink-0 rounded-full bg-white/20" />
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Minimize player"
+            className="self-start rounded-lg p-2 text-stone-400 transition hover:bg-white/5 hover:text-white"
+          >
+            {ChevronDownIcon}
+          </button>
+        </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-8 px-8 pb-12">
         <div className="flex h-56 w-56 max-w-full items-center justify-center rounded-2xl bg-white/5 text-6xl shadow-2xl">
           🎵
         </div>
@@ -176,7 +180,9 @@ export default function NowPlayingSheet({
             <p className="mt-1 truncate text-sm text-stone-400">{track.artist}</p>
           )}
         </div>
+      </div>
 
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 px-8 pb-12">
         <div className="flex items-center gap-6">
           <button
             type="button"
@@ -267,6 +273,15 @@ export default function NowPlayingSheet({
             {SkipNextIcon}
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={close}
+          className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium text-stone-400 transition hover:bg-white/5 hover:text-white active:scale-95"
+        >
+          {ChevronDownIcon}
+          Minimize
+        </button>
       </div>
     </div>
   )
