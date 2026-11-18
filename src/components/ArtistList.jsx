@@ -8,7 +8,7 @@ export default function ArtistList({ artists, onOpen, emptyMessage }) {
   }
 
   return (
-    <ul className="flex-1 overflow-y-auto">
+    <ul className="min-h-0 flex-1 overflow-y-auto">
       {artists.map((artist) => (
         <li key={artist.name} className="border-b border-white/5 last:border-b-0">
           <button

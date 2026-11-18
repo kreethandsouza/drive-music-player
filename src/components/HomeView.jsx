@@ -96,7 +96,7 @@ export default function HomeView({
   const isEmpty = recentlyPlayed.length === 0 && mostPlayed.length === 0
 
   return (
-    <div className="flex-1 overflow-y-auto pb-6">
+    <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       <div className="flex items-center justify-between px-4 pt-4">
         <div className="min-w-0">
           <p className="truncate text-xl font-semibold text-white">

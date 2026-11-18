@@ -122,7 +122,11 @@ function App() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-brand-950">
+    // h-svh (an exact height), not min-h-svh (only a minimum) — the page
+    // is now locked (see index.css) so anything taller than the viewport
+    // would be clipped off-screen with no way to scroll down to it,
+    // instead of just growing the page like it used to.
+    <div className="flex h-svh flex-col bg-brand-950">
       <Header onSignOut={auth.signOut} onRefresh={library.reload} isRefreshing={library.isLoading} />
 
       <LibraryView

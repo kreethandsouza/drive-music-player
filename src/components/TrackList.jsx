@@ -41,7 +41,7 @@ export default function TrackList({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {countLabel && <p className="px-4 py-2 text-xs text-neutral-500">{countLabel}</p>}
       <ul>
         {tracks.map((track) => (
