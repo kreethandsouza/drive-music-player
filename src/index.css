@@ -32,17 +32,21 @@ body {
   touch-action: manipulation;
 }
 
-/* Pinned to the real viewport edges rather than sized with a height unit
-   (100vh/100svh/100dvh) — those don't reliably match the actual usable
-   screen in an iOS home-screen ("Add to Home Screen") PWA, which was
-   letting the bottom nav/player end up clipped below the visible area
-   with no way to scroll to it. `inset: 0` always matches the true visual
-   viewport regardless of that. Respects the iPhone notch/home indicator
-   via safe-area padding, and its one child (App's root element) is a
-   flex-1 flex column that exactly fills it from there. */
+/* Pinned to the real viewport edges, with the height taken from the
+   --app-height custom property (set in main.jsx from the actual measured
+   window/visualViewport height) rather than a CSS viewport-height unit
+   (100vh/100svh/100dvh) or relying on `inset: 0` alone for the vertical
+   extent — both can disagree with the real usable screen in an iOS
+   home-screen ("Add to Home Screen") PWA, which was leaving a gap of
+   bare background below the bottom-most UI with no way to scroll to it.
+   Its one child (App's root element) is a flex-1 flex column that
+   exactly fills it from there. */
 #root {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-height, 100vh);
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
