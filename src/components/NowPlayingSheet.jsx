@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Spinner from './Spinner'
 import { UNKNOWN_ARTIST } from '../lib/sheetLibrary'
+import { colorForId } from '../lib/trackColor'
 
 const CLOSE_ANIMATION_MS = 220
 // How far (in px) the sheet needs to be dragged down before it counts as a
@@ -170,7 +171,10 @@ export default function NowPlayingSheet({
           </button>
         </div>
 
-        <div className="flex h-56 w-56 max-w-full items-center justify-center rounded-2xl bg-white/5 text-6xl shadow-2xl">
+        <div
+          className="flex h-56 w-56 max-w-full items-center justify-center rounded-2xl text-6xl shadow-2xl"
+          style={{ backgroundColor: colorForId(track.id) }}
+        >
           🎵
         </div>
 

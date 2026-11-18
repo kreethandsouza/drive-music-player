@@ -1,4 +1,5 @@
 import { UNKNOWN_ARTIST } from '../lib/sheetLibrary'
+import { colorForId } from '../lib/trackColor'
 import TrackRow from './TrackRow'
 
 function getGreeting() {
@@ -7,14 +8,6 @@ function getGreeting() {
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
-}
-
-// A deterministic color per track id, so the same song always gets the
-// same "cover" tile color across sessions — there's no real album art.
-function colorForId(id) {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  return `hsl(${hash % 360} 45% 22%)`
 }
 
 function Avatar({ profile }) {

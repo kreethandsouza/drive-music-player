@@ -165,12 +165,10 @@ function App() {
         isPlaying={player.isPlaying}
         isLoading={player.isLoading}
         progress={player.progress}
-        hasPrevious={Boolean(previousTrack)}
-        hasNext={Boolean(nextTrack)}
+        isLiked={Boolean(player.currentTrack && likedTrackIds.has(player.currentTrack.id))}
         onToggle={() => player.playTrack(player.currentTrack)}
+        onToggleLike={() => player.currentTrack && toggleLike(player.currentTrack.id)}
         onSeek={player.seek}
-        onPrevious={() => previousTrack && player.playTrack(previousTrack)}
-        onNext={() => nextTrack && player.playTrack(nextTrack)}
         onExpand={() => setIsPlayerExpanded(true)}
       />
 
