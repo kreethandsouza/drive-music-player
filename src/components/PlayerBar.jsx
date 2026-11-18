@@ -47,7 +47,12 @@ export default function PlayerBar({ track, isPlaying, isLoading, progress, isLik
 
   return (
     <div
-      className="sticky bottom-0 z-10 border-t border-white/10 bg-brand-900/95 backdrop-blur"
+      // Not `sticky` — the app shell (#root) is now a fixed, non-scrolling
+      // flex column (see index.css), so there's no scrolling ancestor for
+      // `sticky` to stick within; it was computing against the collapsed
+      // <body> instead and snapping to the top of the screen. Plain flex
+      // placement already keeps this right above the bottom nav.
+      className="shrink-0 border-t border-white/10 bg-brand-900/95 backdrop-blur"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {

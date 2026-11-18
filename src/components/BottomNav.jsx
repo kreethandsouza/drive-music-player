@@ -39,20 +39,29 @@ const TABS = [
  */
 export default function BottomNav({ active, onChange }) {
   return (
-    <nav className="flex shrink-0 border-t border-white/10 bg-brand-950/95 backdrop-blur">
-      {TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition active:scale-95 ${
-            active === tab.id ? 'text-gold-400' : 'text-neutral-500 hover:text-neutral-300'
-          }`}
-        >
-          {tab.icon}
-          {tab.label}
-        </button>
-      ))}
+    <nav className="flex shrink-0 gap-1 border-t border-white/10 bg-brand-950/95 px-2 py-1.5 backdrop-blur">
+      {TABS.map((tab) => {
+        const isActive = active === tab.id
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[11px] font-medium transition active:scale-95 ${
+              isActive ? 'text-gold-400' : 'text-neutral-500 hover:bg-white/5 hover:text-neutral-300'
+            }`}
+          >
+            <span
+              className={`flex h-8 w-12 items-center justify-center rounded-full transition ${
+                isActive ? 'bg-gold-500/15' : ''
+              }`}
+            >
+              {tab.icon}
+            </span>
+            {tab.label}
+          </button>
+        )
+      })}
     </nav>
   )
 }
