@@ -97,4 +97,19 @@ export async function writeMetadataFile(token, fileId, data) {
   })
 }
 
+const SHEETS_VALUES_URL = 'https://sheets.googleapis.com/v4/spreadsheets'
+
+/**
+ * Read a tab's cell values as rows of strings, via the Sheets API rather
+ * than the public CSV export — needed because the catalog sheet is shared
+ * with specific accounts only, not "anyone with the link," so it has to be
+ * read with the signed-in user's own access.
+ */
+export async function fetchSheetValues(token, spreadsheetId, sheetName) {
+  const range = encodeURIComponent(sheetName)
+  const res = await driveFetch(`${SHEETS_VALUES_URL}/${spreadsheetId}/values/${range}`, token)
+  const data = await res.json()
+  return data.values || []
+}
+
 export { DriveApiError }

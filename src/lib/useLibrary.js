@@ -18,20 +18,24 @@ function groupByComposer(tracks) {
 /**
  * Loads the song library from the shared Google Sheet (see sheetLibrary.js)
  * and groups tracks by composer. The sheet is the single source of truth
- * for which songs exist and their title/composer.
+ * for which songs exist and their title/composer. It's shared with
+ * specific accounts only, so loading needs the signed-in user's token —
+ * nothing loads until `token` is set.
  */
-export function useLibrary() {
+export function useLibrary(token) {
   const [tracks, setTracks] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
+    if (!token) return undefined
+
     let cancelled = false
     setIsLoading(true)
     setError(null)
 
-    fetchSongLibrary()
+    fetchSongLibrary(token)
       .then((loaded) => {
         if (!cancelled) setTracks(loaded)
       })
@@ -47,7 +51,7 @@ export function useLibrary() {
     return () => {
       cancelled = true
     }
-  }, [reloadToken])
+  }, [token, reloadToken])
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), [])
   const composers = useMemo(() => groupByComposer(tracks), [tracks])

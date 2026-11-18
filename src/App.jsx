@@ -14,7 +14,7 @@ import { PASAND_PLAYLIST_NAME } from './lib/metadataStore'
 
 function App() {
   const auth = useGoogleAuth()
-  const library = useLibrary()
+  const library = useLibrary(auth.token)
   const player = useAudioPlayer(auth.token, library.tracksBySongNo)
   const driveMeta = useDriveMetadata(auth.token)
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false)

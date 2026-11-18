@@ -27,3 +27,7 @@ dist-ssr
 client_secret*.json
 *.env
 .env*
+
+# Song catalog exports — contain private Drive file links/ids for a sheet
+# that's intentionally restricted to specific accounts, not public
+*.csv

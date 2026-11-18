@@ -1,73 +1,19 @@
-// Loads the song library from a Google Sheet maintained by the Drive
-// account that owns the actual audio files. The sheet (shared "Anyone with
-// the link can view") is this app's single source of truth for which
-// songs exist and their Title/Composer — it's fetched as plain CSV with no
-// Google sign-in required. Playback still streams the underlying file
+// Loads the song library ("Song Library 2.0") from a Google Sheet
+// maintained by the Drive account that owns the actual audio files. Unlike
+// the original catalog sheet, this one is shared with specific Google
+// accounts only (not "anyone with the link"), so it's read with the
+// signed-in user's own access via the Sheets API rather than as a public,
+// unauthenticated CSV export. Playback still streams the underlying file
 // straight from Drive by id (see drive.js#fetchAudioBlobUrl), which only
-// works once the signed-in account has read access to it.
+// works once the signed-in account also has read access to that file.
 
+import { fetchSheetValues } from './drive'
 import { normalizeForSearch } from './kannadaSearch'
 
-const SHEET_ID = '1IKpxM3A1QRFT03218aUMsGqHqakThf2aK1FNNSV-FKk'
-
-// Both tabs share the same columns (Song No, SONG, Title, COMPOSER, SONG
-// LINK, ...) and are merged into one flat list — this app makes no
-// distinction between "allotted" and "un-allotted" songs.
-const SHEET_TABS = ['Allotted Songs', 'Un-Allotted Songs']
+const SHEET_ID = '1Yj01pv5baKcHwX7hLkc2E4mn7IHJtpov197R0cKccJ4'
+const SHEET_TAB = 'Mangalorean Songs'
 
 export const UNKNOWN_ARTIST = 'Unknown Composer'
-
-function csvUrl(sheetName) {
-  const params = new URLSearchParams({ tqx: 'out:csv', sheet: sheetName })
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?${params}`
-}
-
-/**
- * Minimal RFC4180 CSV parser (handles quoted fields, including embedded
- * commas, quotes, and newlines) — this sheet's export isn't available as
- * JSON without an API key, so we parse the public CSV export ourselves
- * rather than pull in a dependency for it.
- */
-function parseCsv(text) {
-  const rows = []
-  let row = []
-  let field = ''
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"'
-          i++
-        } else {
-          inQuotes = false
-        }
-      } else {
-        field += char
-      }
-    } else if (char === '"') {
-      inQuotes = true
-    } else if (char === ',') {
-      row.push(field)
-      field = ''
-    } else if (char === '\n' || char === '\r') {
-      if (char === '\r' && text[i + 1] === '\n') i++
-      row.push(field)
-      rows.push(row)
-      row = []
-      field = ''
-    } else {
-      field += char
-    }
-  }
-  if (field.length > 0 || row.length > 0) {
-    row.push(field)
-    rows.push(row)
-  }
-  return rows
-}
 
 const DRIVE_LINK_RE = /\/file\/d\/([a-zA-Z0-9_-]+)/
 
@@ -76,10 +22,13 @@ function extractFileId(link) {
   return match ? match[1] : null
 }
 
-// Columns are: Song No, SONG (rough English title), Title (native-script
-// title — treated as authoritative), COMPOSER, SONG LINK, ...
+// Columns: Song Code, SONG (rough English title), Title (native-script
+// title — treated as authoritative), LYRICIST, COMPOSER, ALBUM, OWNERSHIP,
+// BOOK, SONG LINK, LYRICS LINK, GENRE, SCALE. A row with no extractable
+// Drive file id (blank, or a placeholder like "Voice"/"-" for a song not
+// recorded yet) or no title at all is skipped rather than shown unplayable.
 function rowToTrack(row) {
-  const [songNo, englishTitle, title, composer, link] = row
+  const [songNo, englishTitle, title, , composer, , , , link] = row
   const id = extractFileId(link)
   const displayTitle = (title || englishTitle || '').trim()
   if (!id || !displayTitle) return null
@@ -101,27 +50,17 @@ function rowToTrack(row) {
   }
 }
 
-async function fetchSheetTab(sheetName) {
-  const res = await fetch(csvUrl(sheetName))
-  if (!res.ok) throw new Error(`Could not load the "${sheetName}" sheet (${res.status}).`)
-  const rows = parseCsv(await res.text())
-  // Row 0 is always skipped: it's a normal header on "Un-Allotted Songs",
-  // but on "Allotted Songs" a chunk of early rows ended up pasted into one
-  // giant row instead of one row per song — skip that too for now rather
-  // than lose the rest of the (correctly structured) sheet.
-  return rows.slice(1)
-}
-
-/** Fetch and merge the song library from every tab, deduped by Drive file id. */
-export async function fetchSongLibrary() {
-  const tabRows = await Promise.all(SHEET_TABS.map(fetchSheetTab))
+/** Fetch the song library, deduped by Drive file id (a song can end up with
+ * more than one row pointing at the same file — e.g. an accidental
+ * duplicate row — and only the first is kept). */
+export async function fetchSongLibrary(token) {
+  const rows = await fetchSheetValues(token, SHEET_ID, SHEET_TAB)
+  const dataRows = rows.slice(1) // row 0 is the header
 
   const byId = new Map()
-  for (const rows of tabRows) {
-    for (const row of rows) {
-      const track = rowToTrack(row)
-      if (track && !byId.has(track.id)) byId.set(track.id, track)
-    }
+  for (const row of dataRows) {
+    const track = rowToTrack(row)
+    if (track && !byId.has(track.id)) byId.set(track.id, track)
   }
 
   return Array.from(byId.values()).sort((a, b) => a.displayTitle.localeCompare(b.displayTitle))
