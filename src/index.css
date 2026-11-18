@@ -46,12 +46,15 @@ body {
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Every internally-scrollable list/panel in the app uses this utility —
    contain their scroll so hitting the top/bottom doesn't chain into
-   bouncing the page (now locked, see html/body above) or a parent panel. */
+   bouncing the page (now locked, see html/body above) or a parent panel.
+   Also pad for the home indicator here (rather than on #root) so there's
+   no gap of bare background below whatever's actually at the bottom —
+   the mini player pads for it on its own, see PlayerBar.jsx. */
 .overflow-y-auto {
   overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom);
 }

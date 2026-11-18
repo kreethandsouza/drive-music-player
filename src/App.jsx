@@ -132,6 +132,19 @@ function App() {
     <div className="flex min-h-0 flex-1 flex-col bg-brand-950">
       <Header onSignOut={auth.signOut} onRefresh={library.reload} isRefreshing={library.isLoading} />
 
+      {player.isLoading && player.currentTrack && (
+        // On a slow connection, fetching the full audio file (required
+        // since Drive's auth has to go in a header, which a plain <audio>
+        // tag can't send — so the whole file is fetched before playback
+        // can start) can take several seconds with little other visual
+        // feedback, which can look like the app has frozen. This makes it
+        // unmistakable that it's working, not stuck.
+        <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-brand-900/80 px-4 py-2 text-sm text-stone-300">
+          <Spinner className="h-4 w-4 shrink-0" />
+          <span className="truncate">Loading “{player.currentTrack.displayTitle}”…</span>
+        </div>
+      )}
+
       <LibraryView
         tracks={library.tracks}
         composers={library.composers}

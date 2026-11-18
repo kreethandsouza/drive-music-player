@@ -51,8 +51,12 @@ export default function PlayerBar({ track, isPlaying, isLoading, progress, isLik
       // flex column (see index.css), so there's no scrolling ancestor for
       // `sticky` to stick within; it was computing against the collapsed
       // <body> instead and snapping to the top of the screen. Plain flex
-      // placement already keeps this right above the bottom nav.
+      // placement already keeps this at the bottom.
       className="shrink-0 border-t border-white/10 bg-brand-900/95 backdrop-blur"
+      // Pads for the home indicator itself, so this bar's own background
+      // extends flush to the true bottom edge instead of leaving a gap
+      // of bare page background showing below it.
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {
