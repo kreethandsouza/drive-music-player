@@ -3,7 +3,7 @@ import logo from '../assets/logo.png'
 
 export default function SignInScreen({ onSignIn, isSigningIn, isReady, error }) {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-brand-950 px-6 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 overflow-y-auto bg-brand-950 px-6 py-6 text-center">
       <img src={logo} alt="" className="h-24 w-24" />
       <div>
         <h1 className="text-2xl font-semibold text-white">Swarr</h1>

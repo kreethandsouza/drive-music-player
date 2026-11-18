@@ -104,7 +104,7 @@ function App() {
   // see a flash of the sign-in screen before that attempt resolves.
   if ((!auth.isReady || auth.isRestoringSession) && !auth.error) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-brand-950">
+      <div className="flex flex-1 items-center justify-center bg-brand-950">
         <Spinner className="h-6 w-6 text-stone-500" />
       </div>
     )
@@ -122,11 +122,11 @@ function App() {
   }
 
   return (
-    // h-svh (an exact height), not min-h-svh (only a minimum) — the page
-    // is now locked (see index.css) so anything taller than the viewport
-    // would be clipped off-screen with no way to scroll down to it,
-    // instead of just growing the page like it used to.
-    <div className="flex h-svh flex-col bg-brand-950">
+    // flex-1 (not a height unit like h-svh) — #root is the thing pinned
+    // to the real viewport edges (see index.css); this just fills it.
+    // min-h-0 lets its own flex-1 child (the scrollable list) actually
+    // scroll within that space instead of growing past it.
+    <div className="flex min-h-0 flex-1 flex-col bg-brand-950">
       <Header onSignOut={auth.signOut} onRefresh={library.reload} isRefreshing={library.isLoading} />
 
       <LibraryView
