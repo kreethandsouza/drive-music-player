@@ -13,13 +13,9 @@
 }
 
 html,
-body {
-  /* Locks the page itself in place so a swipe inside the app can't also
-     rubber-band/bounce the whole page (iOS Safari's elastic overscroll) —
-     only elements that opt into their own scrolling (overflow-y-auto)
-     should move. */
-  overflow: hidden;
-  overscroll-behavior: none;
+body,
+#root {
+  height: 100%;
 }
 
 body {
@@ -32,33 +28,15 @@ body {
   touch-action: manipulation;
 }
 
-/* Pinned to the real viewport edges, with the height taken from the
-   --app-height custom property (set in main.jsx from the actual measured
-   window/visualViewport height) rather than a CSS viewport-height unit
-   (100vh/100svh/100dvh) or relying on `inset: 0` alone for the vertical
-   extent — both can disagree with the real usable screen in an iOS
-   home-screen ("Add to Home Screen") PWA, which was leaving a gap of
-   bare background below the bottom-most UI with no way to scroll to it.
-   Its one child (App's root element) is a flex-1 flex column that
-   exactly fills it from there. */
+/* Respect the iPhone notch / home indicator safe areas. */
 #root {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--app-height, 100vh);
-  display: flex;
-  flex-direction: column;
   padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Every internally-scrollable list/panel in the app uses this utility —
-   contain their scroll so hitting the top/bottom doesn't chain into
-   bouncing the page (now locked, see html/body above) or a parent panel.
-   Also pad for the home indicator here (rather than on #root) so there's
-   no gap of bare background below whatever's actually at the bottom —
-   the mini player pads for it on its own, see PlayerBar.jsx. */
+   contain their own overscroll so hitting the top/bottom doesn't chain
+   into bouncing a parent panel. */
 .overflow-y-auto {
   overscroll-behavior: contain;
-  padding-bottom: env(safe-area-inset-bottom);
 }

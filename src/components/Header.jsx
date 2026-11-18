@@ -6,11 +6,7 @@ export default function Header({ onSignOut, onRefresh, isRefreshing }) {
   const [showAbout, setShowAbout] = useState(false)
 
   return (
-    // Not `sticky` — #root is a fixed, non-scrolling flex column (see
-    // index.css), so plain flex placement already keeps this pinned at
-    // the top; `sticky` had no real scrolling ancestor to stick within
-    // and was computing against <body> instead, breaking its position.
-    <header className="shrink-0 z-10 flex items-center justify-between border-b border-white/10 bg-brand-950/90 px-4 py-3 backdrop-blur">
+    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-brand-950/90 px-4 py-3 backdrop-blur">
       <div className="flex items-center gap-2">
         <img src={logo} alt="" className="h-7 w-7 shrink-0" />
         <div className="leading-tight">
