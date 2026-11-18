@@ -18,6 +18,16 @@ body,
   height: 100%;
 }
 
+html,
+body {
+  /* Locks the page itself in place so a swipe inside the app can't also
+     rubber-band/bounce the whole page (iOS Safari's elastic overscroll) —
+     only elements that opt into their own scrolling (overflow-y-auto)
+     should move. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   background: #2c0d0e;
@@ -32,4 +42,11 @@ body {
 #root {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Every internally-scrollable list/panel in the app uses this utility —
+   contain their scroll so hitting the top/bottom doesn't chain into
+   bouncing the page (now locked, see html/body above) or a parent panel. */
+.overflow-y-auto {
+  overscroll-behavior: contain;
 }

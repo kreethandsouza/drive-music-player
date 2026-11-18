@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import Header from './components/Header'
 import SignInScreen from './components/SignInScreen'
 import LibraryView from './components/LibraryView'
+import BottomNav from './components/BottomNav'
 import PlayerBar from './components/PlayerBar'
 import NowPlayingSheet from './components/NowPlayingSheet'
 import AddToPlaylistModal from './components/AddToPlaylistModal'
@@ -20,6 +21,7 @@ function App() {
   const library = useLibrary(auth.token)
   const driveMeta = useDriveMetadata(auth.token)
   const player = useAudioPlayer(auth.token, library.tracksBySongNo, driveMeta.recordPlay)
+  const [activeTab, setActiveTab] = useState('home')
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false)
   const [addToPlaylistTrackFromPlayer, setAddToPlaylistTrackFromPlayer] = useState(null)
 
@@ -146,6 +148,7 @@ function App() {
         mostPlayed={mostPlayed}
         topComposer={topComposer}
         totalPlays={totalPlays}
+        activeTab={activeTab}
       />
 
       {driveMeta.error && (
@@ -171,6 +174,8 @@ function App() {
         onSeek={player.seek}
         onExpand={() => setIsPlayerExpanded(true)}
       />
+
+      <BottomNav active={activeTab} onChange={setActiveTab} />
 
       {isPlayerExpanded && player.currentTrack && (
         <NowPlayingSheet
