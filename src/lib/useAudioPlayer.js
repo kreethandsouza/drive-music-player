@@ -67,6 +67,11 @@ function setMediaSession(track, audio, { onPrevious, onNext } = {}) {
   updatePositionState(audio)
 }
 
+// A track only counts as "played" (for the Home tab's stats) once it's
+// been listened to for this long, or reaches its natural end if shorter —
+// otherwise an accidental tap/instant skip would inflate the count.
+const PLAY_COUNT_THRESHOLD_SECONDS = 10
+
 /**
  * Owns a single persistent <audio> element so exactly one track can stream
  * at a time, wires it up to the Media Session API for lock-screen controls,
@@ -75,8 +80,11 @@ function setMediaSession(track, audio, { onPrevious, onNext } = {}) {
  * `autoplayTracks` is the song-number-ordered track list used to pick what
  * plays next when a track finishes on its own: the next higher song
  * number, wrapping back to the first track after the last one.
+ *
+ * `onPlayCounted(trackId)` fires once per track play, past the threshold
+ * above.
  */
-export function useAudioPlayer(token, autoplayTracks = []) {
+export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
   // Plain DOM handle — intentionally a ref (not state), since it's an
   // imperative escape hatch that we mutate directly (src, play/pause, etc).
   const audioRef = useRef(null)
@@ -98,6 +106,15 @@ export function useAudioPlayer(token, autoplayTracks = []) {
   useEffect(() => {
     autoplayTracksRef.current = autoplayTracks
   }, [autoplayTracks])
+
+  const onPlayCountedRef = useRef(onPlayCounted)
+  useEffect(() => {
+    onPlayCountedRef.current = onPlayCounted
+  }, [onPlayCounted])
+
+  // Reset to false whenever a new track starts (see playTrack); set to
+  // true the first time this play crosses the threshold above.
+  const hasCountedPlayRef = useRef(false)
 
   const playTrackRef = useRef(null)
 
@@ -139,10 +156,15 @@ export function useAudioPlayer(token, autoplayTracks = []) {
     }
     const onEnded = () => {
       setIsPlaying(false)
+      const finished = currentTrackRef.current
+      // A track shorter than the threshold would otherwise never count.
+      if (finished && !hasCountedPlayRef.current) {
+        hasCountedPlayRef.current = true
+        onPlayCountedRef.current?.(finished.id)
+      }
       // Autoplay: advance to the next higher song number, wrapping back to
       // the first track after the last one.
       const list = autoplayTracksRef.current
-      const finished = currentTrackRef.current
       if (!finished || list.length === 0) return
       const index = list.findIndex((t) => t.id === finished.id)
       if (index === -1) return
@@ -152,6 +174,10 @@ export function useAudioPlayer(token, autoplayTracks = []) {
     const onTimeUpdate = () => {
       setProgress({ currentTime: audio.currentTime, duration: audio.duration || 0 })
       updatePositionState(audio)
+      if (!hasCountedPlayRef.current && audio.currentTime >= PLAY_COUNT_THRESHOLD_SECONDS) {
+        hasCountedPlayRef.current = true
+        if (currentTrackRef.current) onPlayCountedRef.current?.(currentTrackRef.current.id)
+      }
     }
     const onError = () => {
       setError('Playback failed. The file may no longer be available.')
@@ -195,6 +221,7 @@ export function useAudioPlayer(token, autoplayTracks = []) {
       setError(null)
       setIsLoading(true)
       setCurrentTrack(track)
+      hasCountedPlayRef.current = false
       audio.pause()
 
       try {

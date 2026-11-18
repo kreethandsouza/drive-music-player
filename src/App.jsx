@@ -7,16 +7,19 @@ import NowPlayingSheet from './components/NowPlayingSheet'
 import AddToPlaylistModal from './components/AddToPlaylistModal'
 import Spinner from './components/Spinner'
 import { useGoogleAuth } from './lib/useGoogleAuth'
+import { useGoogleProfile } from './lib/useGoogleProfile'
 import { useAudioPlayer } from './lib/useAudioPlayer'
 import { useLibrary } from './lib/useLibrary'
 import { useDriveMetadata } from './lib/useDriveMetadata'
 import { PASAND_PLAYLIST_NAME } from './lib/metadataStore'
+import { UNKNOWN_ARTIST } from './lib/sheetLibrary'
 
 function App() {
   const auth = useGoogleAuth()
+  const profile = useGoogleProfile(auth.token)
   const library = useLibrary(auth.token)
-  const player = useAudioPlayer(auth.token, library.tracksBySongNo)
   const driveMeta = useDriveMetadata(auth.token)
+  const player = useAudioPlayer(auth.token, library.tracksBySongNo, driveMeta.recordPlay)
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false)
   const [addToPlaylistTrackFromPlayer, setAddToPlaylistTrackFromPlayer] = useState(null)
 
@@ -30,6 +33,38 @@ function App() {
         tracks: playlist.trackIds.map((id) => tracksById[id]).filter(Boolean),
       })),
     [driveMeta.playlists, tracksById],
+  )
+
+  // Home tab: resolve recently-played/most-played stats (stored by track
+  // id in Drive metadata) against the live track list the same way
+  // playlists are, so a song that's since vanished from the spreadsheet
+  // just quietly drops out rather than showing a broken entry.
+  const recentlyPlayed = useMemo(
+    () => driveMeta.stats.recentlyPlayed.map((id) => tracksById[id]).filter(Boolean),
+    [driveMeta.stats.recentlyPlayed, tracksById],
+  )
+  const mostPlayed = useMemo(() => {
+    const entries = Object.entries(driveMeta.stats.plays)
+      .map(([id, info]) => ({ track: tracksById[id], count: info.count }))
+      .filter((e) => e.track)
+    entries.sort((a, b) => b.count - a.count)
+    return entries.slice(0, 10)
+  }, [driveMeta.stats.plays, tracksById])
+  const topComposer = useMemo(() => {
+    const totals = new Map()
+    for (const { track, count } of mostPlayed) {
+      if (track.artist === UNKNOWN_ARTIST) continue
+      totals.set(track.artist, (totals.get(track.artist) || 0) + count)
+    }
+    let best = null
+    for (const [name, count] of totals) {
+      if (!best || count > best.count) best = { name, count }
+    }
+    return best
+  }, [mostPlayed])
+  const totalPlays = useMemo(
+    () => Object.values(driveMeta.stats.plays).reduce((sum, p) => sum + p.count, 0),
+    [driveMeta.stats.plays],
   )
 
   const pasandPlaylist = useMemo(
@@ -105,6 +140,12 @@ function App() {
         onDeletePlaylist={driveMeta.deletePlaylist}
         onAddTrackToPlaylist={driveMeta.addTrackToPlaylist}
         onRemoveTrackFromPlaylist={driveMeta.removeTrackFromPlaylist}
+        profile={profile}
+        pasandPlaylist={pasandPlaylist}
+        recentlyPlayed={recentlyPlayed}
+        mostPlayed={mostPlayed}
+        topComposer={topComposer}
+        totalPlays={totalPlays}
       />
 
       {driveMeta.error && (

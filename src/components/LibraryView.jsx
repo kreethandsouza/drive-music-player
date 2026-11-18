@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { normalizeForSearch } from '../lib/kannadaSearch'
 import Tabs from './Tabs'
 import SearchBar from './SearchBar'
+import HomeView from './HomeView'
 import TrackList from './TrackList'
 import ArtistList from './ArtistList'
 import PlaylistList from './PlaylistList'
@@ -11,6 +12,7 @@ import AddToPlaylistModal from './AddToPlaylistModal'
 import PromptModal from './PromptModal'
 
 const TABS = [
+  { id: 'home', label: 'Home' },
   { id: 'songs', label: 'Songs' },
   { id: 'composers', label: 'Composers' },
   { id: 'playlists', label: 'Playlists' },
@@ -76,8 +78,14 @@ export default function LibraryView({
   onDeletePlaylist,
   onAddTrackToPlaylist,
   onRemoveTrackFromPlaylist,
+  profile,
+  pasandPlaylist,
+  recentlyPlayed,
+  mostPlayed,
+  topComposer,
+  totalPlays,
 }) {
-  const [activeTab, setActiveTab] = useState('songs')
+  const [activeTab, setActiveTab] = useState('home')
   const [query, setQuery] = useState('')
   const [selectedComposerName, setSelectedComposerName] = useState(null)
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null)
@@ -207,7 +215,26 @@ export default function LibraryView({
     content = (
       <>
         <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
-        <SearchBar value={query} onChange={setQuery} placeholder={`Search ${activeTab}`} />
+        {activeTab !== 'home' && <SearchBar value={query} onChange={setQuery} placeholder={`Search ${activeTab}`} />}
+
+        {activeTab === 'home' && (
+          <HomeView
+            profile={profile}
+            pasandPlaylist={pasandPlaylist}
+            recentlyPlayed={recentlyPlayed}
+            mostPlayed={mostPlayed}
+            topComposer={topComposer}
+            totalPlays={totalPlays}
+            currentTrack={currentTrack}
+            isPlaying={isPlaying}
+            loadingTrackId={loadingTrackId}
+            onPlay={onPlay}
+            likedTrackIds={likedTrackIds}
+            onToggleLike={onToggleLike}
+            onOpenPasand={() => pasandPlaylist && setSelectedPlaylistId(pasandPlaylist.id)}
+            onOpenActions={(track) => setActionsTrack({ track, playlistId: null })}
+          />
+        )}
 
         {activeTab === 'songs' && (
           <TrackList

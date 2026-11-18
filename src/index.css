@@ -22,6 +22,10 @@ body {
   margin: 0;
   background: #2c0d0e;
   -webkit-tap-highlight-color: transparent;
+  /* Double-tap-to-zoom is a separate gesture from pinch-zoom on iOS and
+     isn't fully covered by the viewport meta tag's user-scalable=no in
+     every browser version, so also disable it here. */
+  touch-action: manipulation;
 }
 
 /* Respect the iPhone notch / home indicator safe areas. */

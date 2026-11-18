@@ -1,6 +1,10 @@
 import { createMetadataFile, fetchFileText, findMetadataFile, writeMetadataFile } from './drive'
 
-export const EMPTY_METADATA = { version: 1, playlists: [] }
+// How many distinct recently-played tracks the Home tab's "Recently
+// played" row keeps — older ones just fall off the end.
+export const RECENTLY_PLAYED_LIMIT = 15
+
+export const EMPTY_METADATA = { version: 1, playlists: [], stats: { plays: {}, recentlyPlayed: [] } }
 
 // Every account gets a "Pasand" ("favorites" in Konkani) playlist for free —
 // it's just a regular playlist under the hood, guaranteed to exist as soon
@@ -12,6 +16,10 @@ function normalize(data) {
   return {
     version: 1,
     playlists: Array.isArray(data?.playlists) ? data.playlists : [],
+    stats: {
+      plays: data?.stats?.plays && typeof data.stats.plays === 'object' ? data.stats.plays : {},
+      recentlyPlayed: Array.isArray(data?.stats?.recentlyPlayed) ? data.stats.recentlyPlayed : [],
+    },
   }
 }
 

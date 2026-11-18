@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { writeMetadataFile } from './drive'
-import { EMPTY_METADATA, loadOrCreateMetadata } from './metadataStore'
+import { EMPTY_METADATA, RECENTLY_PLAYED_LIMIT, loadOrCreateMetadata } from './metadataStore'
 
 const SAVE_DEBOUNCE_MS = 800
 
@@ -150,8 +150,29 @@ export function useDriveMetadata(token) {
     [mutate],
   )
 
+  // Called once per track play (see useAudioPlayer's play-count threshold)
+  // to power the Home tab's "Recently played"/"Most played" sections.
+  const recordPlay = useCallback(
+    (trackId) => {
+      mutate((prev) => {
+        const prevEntry = prev.stats.plays[trackId]
+        const plays = {
+          ...prev.stats.plays,
+          [trackId]: { count: (prevEntry?.count || 0) + 1, lastPlayedAt: new Date().toISOString() },
+        }
+        const recentlyPlayed = [trackId, ...prev.stats.recentlyPlayed.filter((id) => id !== trackId)].slice(
+          0,
+          RECENTLY_PLAYED_LIMIT,
+        )
+        return { ...prev, stats: { plays, recentlyPlayed } }
+      })
+    },
+    [mutate],
+  )
+
   return {
     playlists: data.playlists,
+    stats: data.stats,
     isLoading,
     error,
     createPlaylist,
@@ -159,5 +180,6 @@ export function useDriveMetadata(token) {
     deletePlaylist,
     addTrackToPlaylist,
     removeTrackFromPlaylist,
+    recordPlay,
   }
 }

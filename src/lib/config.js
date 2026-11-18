@@ -12,8 +12,10 @@ export const GOOGLE_CLIENT_ID =
 // its own (playlists) — so it needs read-only access to the user's whole
 // Drive, read-only access to Sheets (the catalog is only shared with
 // specific accounts, not "anyone with the link", so it has to be read with
-// the signed-in user's own access rather than as a public CSV export), plus
-// the narrower "files this app created" scope for its own metadata file,
-// rather than full read/write access to everything.
+// the signed-in user's own access rather than as a public CSV export), the
+// standard "profile"/"email" scopes for the Home tab's greeting/avatar
+// (name + profile photo), plus the narrower "files this app created" scope
+// for its own metadata file, rather than full read/write access to
+// everything.
 export const GOOGLE_DRIVE_SCOPE =
-  'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.file'
+  'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.file profile email'
