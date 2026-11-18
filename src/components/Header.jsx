@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import logo from '../assets/logo.png'
 
 export default function Header({ onSignOut, onRefresh, isRefreshing }) {
@@ -53,35 +54,41 @@ export default function Header({ onSignOut, onRefresh, isRefreshing }) {
         </button>
       </div>
 
-      {showAbout && (
-        // Anchored directly to the bottom edge (not flex-centered) and
-        // capped with its own scroll, so it can never end up rendered
-        // near the top/status bar — plus an explicit Close button rather
-        // than relying only on tapping the backdrop.
-        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowAbout(false)}>
+      {showAbout &&
+        createPortal(
+          // Rendered via a portal straight to <body>, not nested inside
+          // this sticky <header> — on iOS Safari a `position: fixed`
+          // descendant of a `position: sticky` ancestor can get trapped
+          // inside that ancestor's small box instead of covering the
+          // full screen (a long-standing WebKit quirk); escaping via a
+          // portal sidesteps it entirely.
           <div
-            className="fixed inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-brand-900 p-5 shadow-xl ring-1 ring-white/10"
-            style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowAbout(false)}
           >
-            <h2 className="mb-4 text-lg font-semibold text-white">About Swarr</h2>
-            <div className="space-y-2 text-sm text-stone-400">
-              <p>© 2026 Swarr. Developed by kreethandsouza.</p>
-              <p>
-                All rights to the songs in this catalog belong to their original creators and to Mandd Sobhann.
-                Swarr is only a streaming interface and claims no ownership over the music.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowAbout(false)}
-              className="mt-5 w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 active:scale-[0.98]"
+            <div
+              className="max-h-[80vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-brand-900 p-5 shadow-xl ring-1 ring-white/10"
+              onClick={(e) => e.stopPropagation()}
             >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+              <h2 className="mb-4 text-lg font-semibold text-white">About Swarr</h2>
+              <div className="space-y-2 text-sm text-stone-400">
+                <p>© 2026 Swarr. Developed by kreethandsouza.</p>
+                <p>
+                  All rights to the songs in this catalog belong to their original creators and to Mandd Sobhann.
+                  Swarr is only a streaming interface and claims no ownership over the music.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAbout(false)}
+                className="mt-5 w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 active:scale-[0.98]"
+              >
+                Close
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </header>
   )
 }
