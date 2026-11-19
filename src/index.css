@@ -30,9 +30,3 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Every internally-scrollable list/panel in the app uses this utility —
-   contain their own overscroll so hitting the top/bottom doesn't chain
-   into bouncing a parent panel. */
-.overflow-y-auto {
-  overscroll-behavior: contain;
-}
