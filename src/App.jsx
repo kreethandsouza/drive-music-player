@@ -86,22 +86,6 @@ function App() {
     [pasandPlaylist, likedTrackIds, driveMeta.removeTrackFromPlaylist, driveMeta.addTrackToPlaylist],
   )
 
-  // Previous/Next in the player bar step by song number (the nearest
-  // existing song number below/above the current one), independent of
-  // whichever list is currently on screen.
-  const currentSongNoIndex = useMemo(
-    () =>
-      player.currentTrack
-        ? library.tracksBySongNo.findIndex((t) => t.id === player.currentTrack.id)
-        : -1,
-    [library.tracksBySongNo, player.currentTrack],
-  )
-  const previousTrack = currentSongNoIndex > 0 ? library.tracksBySongNo[currentSongNoIndex - 1] : null
-  const nextTrack =
-    currentSongNoIndex >= 0 && currentSongNoIndex < library.tracksBySongNo.length - 1
-      ? library.tracksBySongNo[currentSongNoIndex + 1]
-      : null
-
   // Covers both the initial GIS script load and the brief silent
   // sign-in-restore attempt on a cold start, so a returning user doesn't
   // see a flash of the sign-in screen before that attempt resolves.
@@ -164,6 +148,7 @@ function App() {
         mostPlayed={mostPlayed}
         topComposer={topComposer}
         totalPlays={totalPlays}
+        onShufflePlay={player.shufflePlay}
       />
 
       {driveMeta.error && (
@@ -196,13 +181,15 @@ function App() {
           isPlaying={player.isPlaying}
           isLoading={player.isLoading}
           progress={player.progress}
-          hasPrevious={Boolean(previousTrack)}
-          hasNext={Boolean(nextTrack)}
+          hasPrevious={player.hasPrevious}
+          hasNext={player.hasNext}
           isLiked={likedTrackIds.has(player.currentTrack.id)}
+          isShuffled={player.isShuffled}
+          onToggleShuffle={player.toggleShuffle}
           onToggle={() => player.playTrack(player.currentTrack)}
           onSeek={player.seek}
-          onPrevious={() => previousTrack && player.playTrack(previousTrack)}
-          onNext={() => nextTrack && player.playTrack(nextTrack)}
+          onPrevious={player.playPrevious}
+          onNext={player.playNext}
           onToggleLike={() => toggleLike(player.currentTrack.id)}
           onAddToPlaylist={() => setAddToPlaylistTrackFromPlayer(player.currentTrack)}
           onClose={() => setIsPlayerExpanded(false)}

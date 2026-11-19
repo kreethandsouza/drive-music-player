@@ -84,6 +84,7 @@ export default function LibraryView({
   mostPlayed,
   topComposer,
   totalPlays,
+  onShufflePlay,
 }) {
   const [activeTab, setActiveTab] = useState('home')
   const [query, setQuery] = useState('')
@@ -142,6 +143,7 @@ export default function LibraryView({
     likedTrackIds,
     onToggleLike,
     onOpenActions,
+    onShufflePlay,
   }
 
   const actionsList = actionsTrack

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAudioBlobUrl } from './drive'
 
 // Not every browser supports every Media Session action; some throw a
@@ -77,9 +77,11 @@ const PLAY_COUNT_THRESHOLD_SECONDS = 10
  * at a time, wires it up to the Media Session API for lock-screen controls,
  * and keeps playing across screen lock as long as the tab stays open.
  *
- * `autoplayTracks` is the song-number-ordered track list used to pick what
- * plays next when a track finishes on its own: the next higher song
- * number, wrapping back to the first track after the last one.
+ * `autoplayTracks` is the song-number-ordered track list used for
+ * Next/Previous/autoplay-on-ended by default (the next/previous song
+ * number, wrapping back to the first track after the last one) — unless
+ * shuffle is on, or `shufflePlay` confined it to a specific list (e.g. a
+ * playlist's "Shuffle Play" button).
  *
  * `onPlayCounted(trackId)` fires once per track play, past the threshold
  * above.
@@ -94,6 +96,7 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState({ currentTime: 0, duration: 0 })
+  const [isShuffled, setIsShuffled] = useState(false)
 
   // Refs so the 'ended' handler (registered once, see below) always sees
   // the latest track/list/playTrack without re-registering the listener.
@@ -112,18 +115,38 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
     onPlayCountedRef.current = onPlayCounted
   }, [onPlayCounted])
 
+  const isShuffledRef = useRef(false)
+  useEffect(() => {
+    isShuffledRef.current = isShuffled
+  }, [isShuffled])
+  // A "Shuffle Play" action (see shufflePlay) confines Next/Previous/
+  // autoplay to this specific list instead of the full catalog
+  // (autoplayTracksRef), until shuffle is turned off or another Shuffle
+  // Play starts a different list. Mirrored into state (shuffleContext,
+  // shuffleHistoryCount below) purely so hasNext/hasPrevious — read during
+  // render — never read a ref directly; the refs are what the actual
+  // picking logic (pickNext/pickPrevious, imperative, not render) uses.
+  const shuffleContextRef = useRef(null)
+  const [shuffleContext, setShuffleContext] = useState(null)
+  // Tracks played while shuffled, so "Previous" has something to step
+  // back through — a shuffled order has no natural "earlier" to derive.
+  const shuffleHistoryRef = useRef([])
+  const [shuffleHistoryCount, setShuffleHistoryCount] = useState(0)
+
   // Reset to false whenever a new track starts (see playTrack); set to
   // true the first time this play crosses the threshold above.
   const hasCountedPlayRef = useRef(false)
 
   const playTrackRef = useRef(null)
+  const playNextRef = useRef(null)
+  const playPreviousRef = useRef(null)
 
-  // Audio for the next track in song-number order, fetched ahead of time
-  // (see playTrack) so autoplay-on-ended can swap to it instantly. This
-  // matters because iOS Safari throttles/pauses background network
-  // fetches once the screen locks — without a prefetch, autoplay would
-  // advance the lock screen to the next track but its audio fetch would
-  // stall silently until the phone is unlocked.
+  // Audio for the next track, fetched ahead of time (see playTrack) so
+  // autoplay-on-ended can swap to it instantly. This matters because iOS
+  // Safari throttles/pauses background network fetches once the screen
+  // locks — without a prefetch, autoplay would advance the lock screen to
+  // the next track but its audio fetch would stall silently until the
+  // phone is unlocked.
   const prefetchRef = useRef({ trackId: null, blobUrl: null })
 
   const revokeBlobUrl = useCallback(() => {
@@ -136,6 +159,38 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
   const clearPrefetch = useCallback(() => {
     if (prefetchRef.current.blobUrl) URL.revokeObjectURL(prefetchRef.current.blobUrl)
     prefetchRef.current = { trackId: null, blobUrl: null }
+  }, [])
+
+  // Only read refs (never a per-render value), so these never need to be
+  // recreated — safe to call from anywhere via closure, no ref-of-a-ref
+  // indirection needed for *these* two.
+  const pickNext = useCallback((fromTrack) => {
+    const list = shuffleContextRef.current || autoplayTracksRef.current
+    if (!list || list.length === 0) return null
+    if (isShuffledRef.current) {
+      if (list.length === 1) return fromTrack ? null : list[0]
+      let candidate
+      let guard = 0
+      do {
+        candidate = list[Math.floor(Math.random() * list.length)]
+        guard++
+      } while (fromTrack && candidate.id === fromTrack.id && guard < 10)
+      return candidate
+    }
+    const idx = fromTrack ? list.findIndex((t) => t.id === fromTrack.id) : -1
+    if (idx === -1) return list[0] || null
+    return list[(idx + 1) % list.length]
+  }, [])
+
+  const pickPrevious = useCallback((fromTrack) => {
+    if (isShuffledRef.current) {
+      const hist = shuffleHistoryRef.current
+      return hist.length > 0 ? hist[hist.length - 1] : null
+    }
+    const list = shuffleContextRef.current || autoplayTracksRef.current
+    if (!list || !fromTrack) return null
+    const idx = list.findIndex((t) => t.id === fromTrack.id)
+    return idx > 0 ? list[idx - 1] : null
   }, [])
 
   useEffect(() => {
@@ -162,14 +217,10 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
         hasCountedPlayRef.current = true
         onPlayCountedRef.current?.(finished.id)
       }
-      // Autoplay: advance to the next higher song number, wrapping back to
-      // the first track after the last one.
-      const list = autoplayTracksRef.current
-      if (!finished || list.length === 0) return
-      const index = list.findIndex((t) => t.id === finished.id)
-      if (index === -1) return
-      const next = list[(index + 1) % list.length]
-      playTrackRef.current?.(next)
+      // Autoplay: same "what's next" logic as the Next button/lock screen
+      // (shuffled or in order), wrapping back to the first track after
+      // the last one when playing in order.
+      playNextRef.current?.()
     }
     const onTimeUpdate = () => {
       setProgress({ currentTime: audio.currentTime, duration: audio.duration || 0 })
@@ -240,33 +291,30 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
         blobUrlRef.current = blobUrl
         audio.src = blobUrl
 
-        // Lock screen/Control Center Previous/Next: step by song number,
-        // same as the in-app player bar — no wraparound here, unlike the
-        // autoplay-on-ended case above.
-        const list = autoplayTracksRef.current
-        const index = list.findIndex((t) => t.id === track.id)
-        const onPrevious = index > 0 ? () => playTrackRef.current?.(list[index - 1]) : null
-        const onNext = index >= 0 && index < list.length - 1 ? () => playTrackRef.current?.(list[index + 1]) : null
+        // Lock screen/Control Center Previous/Next: same "what's next"
+        // logic as the in-app buttons (shuffled or in order).
+        const onPrevious = pickPrevious(track) ? () => playPreviousRef.current?.() : null
+        const onNext = pickNext(track) ? () => playNextRef.current?.() : null
         setMediaSession(track, audio, { onPrevious, onNext })
 
         await audio.play()
 
         // Prefetch the next track's audio now, while still foregrounded —
-        // see the prefetchRef comment above.
-        if (index !== -1 && list.length > 1) {
-          const upcoming = list[(index + 1) % list.length]
-          if (upcoming && upcoming.id !== track.id && prefetchRef.current.trackId !== upcoming.id) {
-            clearPrefetch()
-            prefetchRef.current = { trackId: upcoming.id, blobUrl: null }
-            fetchAudioBlobUrl(token, upcoming.id)
-              .then((url) => {
-                if (prefetchRef.current.trackId === upcoming.id) prefetchRef.current.blobUrl = url
-                else URL.revokeObjectURL(url) // a different track started before this resolved
-              })
-              .catch(() => {
-                if (prefetchRef.current.trackId === upcoming.id) prefetchRef.current = { trackId: null, blobUrl: null }
-              })
-          }
+        // see the prefetchRef comment above. Only when not shuffled: a
+        // shuffled "next" is randomized each time it's actually requested,
+        // so prefetching one specific guess would usually go to waste.
+        const upcoming = !isShuffledRef.current ? pickNext(track) : null
+        if (upcoming && upcoming.id !== track.id && prefetchRef.current.trackId !== upcoming.id) {
+          clearPrefetch()
+          prefetchRef.current = { trackId: upcoming.id, blobUrl: null }
+          fetchAudioBlobUrl(token, upcoming.id)
+            .then((url) => {
+              if (prefetchRef.current.trackId === upcoming.id) prefetchRef.current.blobUrl = url
+              else URL.revokeObjectURL(url) // a different track started before this resolved
+            })
+            .catch(() => {
+              if (prefetchRef.current.trackId === upcoming.id) prefetchRef.current = { trackId: null, blobUrl: null }
+            })
         }
       } catch {
         setError('Could not load this track from Drive.')
@@ -275,12 +323,90 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
         setIsLoading(false)
       }
     },
-    [token, revokeBlobUrl, clearPrefetch],
+    [token, revokeBlobUrl, clearPrefetch, pickNext, pickPrevious],
   )
 
   useEffect(() => {
     playTrackRef.current = playTrack
   }, [playTrack])
+
+  const playNext = useCallback(() => {
+    const from = currentTrackRef.current
+    const next = pickNext(from)
+    if (!next) return
+    // Shuffled "Previous" steps back through this history rather than
+    // deriving an "earlier" track from a randomized order.
+    if (isShuffledRef.current && from) {
+      shuffleHistoryRef.current.push(from)
+      setShuffleHistoryCount(shuffleHistoryRef.current.length)
+    }
+    playTrackRef.current?.(next)
+  }, [pickNext])
+
+  const playPrevious = useCallback(() => {
+    const from = currentTrackRef.current
+    const prev = pickPrevious(from)
+    if (!prev) return
+    if (isShuffledRef.current) {
+      shuffleHistoryRef.current.pop()
+      setShuffleHistoryCount(shuffleHistoryRef.current.length)
+    }
+    playTrackRef.current?.(prev)
+  }, [pickPrevious])
+
+  useEffect(() => {
+    playNextRef.current = playNext
+  }, [playNext])
+  useEffect(() => {
+    playPreviousRef.current = playPrevious
+  }, [playPrevious])
+
+  const toggleShuffle = useCallback(() => {
+    setIsShuffled((prev) => {
+      const next = !prev
+      isShuffledRef.current = next
+      if (!next) {
+        // Back to normal browsing: forget the shuffle history and any
+        // list a "Shuffle Play" had confined Next/Previous/autoplay to.
+        shuffleHistoryRef.current = []
+        shuffleContextRef.current = null
+        setShuffleHistoryCount(0)
+        setShuffleContext(null)
+      }
+      return next
+    })
+  }, [])
+
+  /** Starts shuffled playback confined to `list` (e.g. a playlist or the
+   * currently visible Songs list) rather than the full catalog. */
+  const shufflePlay = useCallback((list) => {
+    if (!list || list.length === 0) return
+    shuffleContextRef.current = list
+    shuffleHistoryRef.current = []
+    isShuffledRef.current = true
+    setShuffleContext(list)
+    setShuffleHistoryCount(0)
+    setIsShuffled(true)
+    const pick = list[Math.floor(Math.random() * list.length)]
+    playTrackRef.current?.(pick)
+  }, [])
+
+  const hasNext = useMemo(() => {
+    if (!currentTrack) return false
+    const list = shuffleContext || autoplayTracks
+    if (!list || list.length < 2) return false
+    if (isShuffled) return true
+    return list.some((t) => t.id === currentTrack.id)
+  }, [currentTrack, isShuffled, autoplayTracks, shuffleContext])
+
+  const hasPrevious = useMemo(() => {
+    if (!currentTrack) return false
+    if (isShuffled) return shuffleHistoryCount > 0
+    const list = shuffleContext || autoplayTracks
+    if (!list) return false
+    const idx = list.findIndex((t) => t.id === currentTrack.id)
+    return idx > 0
+  }, [currentTrack, isShuffled, autoplayTracks, shuffleContext, shuffleHistoryCount])
 
   const seek = useCallback((time) => {
     const audio = audioRef.current
@@ -293,5 +419,20 @@ export function useAudioPlayer(token, autoplayTracks = [], onPlayCounted) {
   useEffect(() => () => revokeBlobUrl(), [revokeBlobUrl])
   useEffect(() => () => clearPrefetch(), [clearPrefetch])
 
-  return { currentTrack, isLoading, isPlaying, error, progress, playTrack, seek }
+  return {
+    currentTrack,
+    isLoading,
+    isPlaying,
+    error,
+    progress,
+    playTrack,
+    seek,
+    isShuffled,
+    toggleShuffle,
+    shufflePlay,
+    playNext,
+    playPrevious,
+    hasNext,
+    hasPrevious,
+  }
 }
